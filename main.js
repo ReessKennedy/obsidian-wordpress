@@ -77843,7 +77843,7 @@ var AbstractWordPressClient = class {
     }
   }
   async publishPost(defaultPostParams) {
-    var _a2, _b, _c;
+    var _a2, _b, _c, _d, _e, _f, _g;
     try {
       if (!this.profile.endpoint || this.profile.endpoint.length === 0) {
         throw new Error(this.plugin.i18n.t("error_noEndpoint"));
@@ -77858,8 +77858,18 @@ var AbstractWordPressClient = class {
       await this.checkExistingProfile(matterData);
       let postParams;
       let result;
-      if (defaultPostParams) {
-        postParams = await this.readFromFrontMatter(title, matterData, defaultPostParams);
+      const hasExistingPost = matterData.wp_url && matterData.wp_url.length > 0;
+      if (defaultPostParams || hasExistingPost) {
+        const baseParams = defaultPostParams || {
+          status: this.plugin.settings.defaultPostStatus,
+          commentStatus: this.plugin.settings.defaultCommentStatus,
+          postType: (_a2 = matterData.wp_ptype) != null ? _a2 : "post" /* Post */,
+          categories: (_c = (_b = matterData.wp_categories) != null ? _b : this.profile.lastSelectedCategories) != null ? _c : [1],
+          tags: (_d = matterData.wp_tags) != null ? _d : [],
+          title: "",
+          content: ""
+        };
+        postParams = await this.readFromFrontMatter(title, matterData, baseParams);
         postParams.content = content;
         result = await this.tryToPublish({
           auth,
@@ -77867,12 +77877,12 @@ var AbstractWordPressClient = class {
         });
       } else {
         const categories = await this.getCategories(auth);
-        const selectedCategories = (_b = (_a2 = matterData.wp_categories) != null ? _a2 : this.profile.lastSelectedCategories) != null ? _b : [1];
+        const selectedCategories = (_f = (_e = matterData.wp_categories) != null ? _e : this.profile.lastSelectedCategories) != null ? _f : [1];
         const postTypes = await this.getPostTypes(auth);
         if (postTypes.length === 0) {
           postTypes.push("post" /* Post */);
         }
-        const selectedPostType = (_c = matterData.wp_ptype) != null ? _c : "post" /* Post */;
+        const selectedPostType = (_g = matterData.wp_ptype) != null ? _g : "post" /* Post */;
         result = await new Promise((resolve) => {
           const publishModal = new WpPublishModal(
             this.plugin,

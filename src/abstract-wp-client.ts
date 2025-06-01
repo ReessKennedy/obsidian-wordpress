@@ -332,8 +332,23 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       // now we're preparing the publishing data
       let postParams: WordPressPostParams;
       let result: WordPressClientResult<WordPressPublishResult> | undefined;
-      if (defaultPostParams) {
-        postParams = await this.readFromFrontMatter(title, matterData, defaultPostParams);
+      
+      // Check if this is an update (wp_url exists) vs new post
+      const hasExistingPost = matterData.wp_url && matterData.wp_url.length > 0;
+      
+      if (defaultPostParams || hasExistingPost) {
+        // Use existing parameters or create default ones for updates
+        const baseParams = defaultPostParams || {
+          status: this.plugin.settings.defaultPostStatus,
+          commentStatus: this.plugin.settings.defaultCommentStatus,
+          postType: matterData.wp_ptype ?? PostTypeConst.Post,
+          categories: (matterData.wp_categories as number[]) ?? this.profile.lastSelectedCategories ?? [1],
+          tags: (matterData.wp_tags as string[]) ?? [],
+          title: '',
+          content: ''
+        };
+        
+        postParams = await this.readFromFrontMatter(title, matterData, baseParams);
         postParams.content = content;
         result = await this.tryToPublish({
           auth,
