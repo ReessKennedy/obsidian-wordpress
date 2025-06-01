@@ -78294,27 +78294,12 @@ var WpRestClient = class extends AbstractWordPressClient {
     this.profile = profile;
     this.context = context;
     this.name = "WpRestClient";
-    this.client = new RestClient(plugin4, {
+    this.client = new RestClient({
       url: new URL(getUrl((_a2 = this.context.endpoints) == null ? void 0 : _a2.base, profile.endpoint))
     });
   }
   needLogin() {
     return this.context.needLoginModal !== false;
-  }
-  async getPostsBySlug(slug) {
-    var _a2;
-    try {
-      const auth = await this.getAuth();
-      const response = await this.client.get(
-        getUrl((_a2 = this.context.endpoints) == null ? void 0 : _a2.getPostBySlug, `wp-json/wp/v2/posts?slug=${slug}`),
-        void 0,
-        this.context.getHeaders(auth)
-      );
-      return response || [];
-    } catch (error2) {
-      console.error("Error fetching posts by slug:", error2);
-      return [];
-    }
   }
   async publish(title, content, postParams, certificate) {
     var _a2, _b, _c, _d;
@@ -78556,8 +78541,7 @@ var WpRestClientWpComOAuth2Context = class {
       getTag: () => `/rest/v1.1/sites/${this.site}/tags?number=1&search=<%= name %>`,
       validateUser: () => `/rest/v1.1/sites/${this.site}/posts?number=1`,
       uploadFile: () => `/rest/v1.1/sites/${this.site}/media/new`,
-      getPostTypes: () => `/rest/v1.1/sites/${this.site}/post-types`,
-      getPostBySlug: () => `/rest/v1.1/sites/${this.site}/posts?slug=<%= slug %>`
+      getPostTypes: () => `/rest/v1.1/sites/${this.site}/post-types`
     };
     this.responseParser = {
       toWordPressPublishResult: (postParams, response) => {
