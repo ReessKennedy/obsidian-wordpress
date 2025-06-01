@@ -77719,7 +77719,9 @@ var AbstractWordPressClient = class {
     var _a2;
     const { wp_profile } = matterData;
     const isProfileNameMismatch = wp_profile && wp_profile !== this.profile.name;
+    console.log("DEBUG: checkExistingProfile - wp_profile =", wp_profile, "current profile =", this.profile.name, "mismatch =", isProfileNameMismatch);
     if (isProfileNameMismatch) {
+      console.log("DEBUG: Profile mismatch detected, showing confirm modal");
       const confirm = await openConfirmModal({
         message: this.plugin.i18n.t("error_profileNotMatch"),
         cancelText: this.plugin.i18n.t("profileNotMatch_useOld", {
@@ -77729,7 +77731,9 @@ var AbstractWordPressClient = class {
           profileName: this.profile.name
         })
       }, this.plugin);
+      console.log("DEBUG: Confirm modal result =", confirm.code);
       if (confirm.code !== 0 /* Cancel */) {
+        console.log("DEBUG: CLEARING wp_url due to profile change!");
         delete matterData.wp_url;
         matterData.wp_categories = (_a2 = this.profile.lastSelectedCategories) != null ? _a2 : [1];
       }
@@ -77763,7 +77767,10 @@ var AbstractWordPressClient = class {
       if (file) {
         console.log("DEBUG: Before frontmatter update");
         console.log("DEBUG: postId =", postId);
+        console.log("DEBUG: result.data.postUrl =", result.data.postUrl);
         console.log("DEBUG: postParams =", JSON.stringify(postParams));
+        const currentContent = await this.plugin.app.vault.read(file);
+        console.log("DEBUG: Full file content before processing:", currentContent.substring(0, 500));
         await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
           console.log("DEBUG: Original frontmatter =", JSON.stringify(fm));
           const preserved = {
@@ -77775,14 +77782,17 @@ var AbstractWordPressClient = class {
             wp_title: fm.wp_title
           };
           fm.wp_profile = this.profile.name;
-          if (postId && result.data.postUrl) {
+          if (result.data.postUrl && result.data.postUrl !== preserved.wp_url) {
             fm.wp_url = result.data.postUrl;
-          } else if (postId && !preserved.wp_url) {
-            fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
+            console.log("DEBUG: Using new postUrl from response:", result.data.postUrl);
           } else if (preserved.wp_url) {
             fm.wp_url = preserved.wp_url;
+            console.log("DEBUG: Keeping existing URL:", preserved.wp_url);
+          } else if (postId) {
+            fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
+            console.log("DEBUG: Creating fallback URL for new post:", fm.wp_url);
           }
-          if (preserved.wp_ptype) {
+          if (preserved.wp_ptype !== void 0) {
             fm.wp_ptype = preserved.wp_ptype;
           }
           if (preserved.wp_categories !== void 0) {
@@ -77791,17 +77801,20 @@ var AbstractWordPressClient = class {
           if (preserved.wp_tags !== void 0) {
             fm.wp_tags = preserved.wp_tags;
           }
-          if (preserved.wp_title) {
+          if (preserved.wp_title !== void 0) {
             fm.wp_title = preserved.wp_title;
           }
           console.log("DEBUG: Preserved values =", JSON.stringify(preserved));
           console.log("DEBUG: Final frontmatter =", JSON.stringify(fm));
           if (isFunction_default(updateMatterData)) {
+            console.log("DEBUG: Running updateMatterData callback");
             updateMatterData(fm);
             console.log("DEBUG: After updateMatterData =", JSON.stringify(fm));
           }
         });
         console.log("DEBUG: Frontmatter update completed");
+        const updatedContent = await this.plugin.app.vault.read(file);
+        console.log("DEBUG: Full file content after processing:", updatedContent.substring(0, 500));
       }
       if (postId) {
         if (this.plugin.settings.rememberLastSelectedCategories) {
@@ -77885,7 +77898,9 @@ var AbstractWordPressClient = class {
       const auth = await this.getAuth();
       const title = file.basename;
       const { content, matter: matterData } = await processFile(file, this.plugin.app);
+      console.log("DEBUG: Initial matterData after processFile =", JSON.stringify(matterData));
       await this.checkExistingProfile(matterData);
+      console.log("DEBUG: matterData after checkExistingProfile =", JSON.stringify(matterData));
       let postParams;
       let result;
       const hasExistingPost = matterData.wp_url && matterData.wp_url.length > 0;

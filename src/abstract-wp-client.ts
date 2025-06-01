@@ -168,7 +168,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
   private async checkExistingProfile(matterData: MatterData) {
     const { wp_profile } = matterData;
     const isProfileNameMismatch = wp_profile && wp_profile !== this.profile.name;
+    console.log('DEBUG: checkExistingProfile - wp_profile =', wp_profile, 'current profile =', this.profile.name, 'mismatch =', isProfileNameMismatch);
     if (isProfileNameMismatch) {
+      console.log('DEBUG: Profile mismatch detected, showing confirm modal');
       const confirm = await openConfirmModal({
         message: this.plugin.i18n.t('error_profileNotMatch'),
         cancelText: this.plugin.i18n.t('profileNotMatch_useOld', {
@@ -178,7 +180,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           profileName: this.profile.name
         })
       }, this.plugin);
+      console.log('DEBUG: Confirm modal result =', confirm.code);
       if (confirm.code !== ConfirmCode.Cancel) {
+        console.log('DEBUG: CLEARING wp_url due to profile change!');
         delete matterData.wp_url;
         matterData.wp_categories = this.profile.lastSelectedCategories ?? [ 1 ];
       }
@@ -218,7 +222,12 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       if (file) {
         console.log('DEBUG: Before frontmatter update');
         console.log('DEBUG: postId =', postId);
+        console.log('DEBUG: result.data.postUrl =', result.data.postUrl);
         console.log('DEBUG: postParams =', JSON.stringify(postParams));
+        
+        // Debug: Check frontmatter BEFORE processFrontMatter
+        const currentContent = await this.plugin.app.vault.read(file);
+        console.log('DEBUG: Full file content before processing:', currentContent.substring(0, 500));
         
         await this.plugin.app.fileManager.processFrontMatter(file, fm => {
           console.log('DEBUG: Original frontmatter =', JSON.stringify(fm));
@@ -236,17 +245,23 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           // Only update fields that should actually change
           fm.wp_profile = this.profile.name;
           
-          // Handle URL - only update if we have new info
-          if (postId && result.data.postUrl) {
+          // URL preservation logic - NEVER change existing URLs unless we have explicit new postUrl
+          if (result.data.postUrl && result.data.postUrl !== preserved.wp_url) {
+            // WordPress gave us a new/different URL, use it
             fm.wp_url = result.data.postUrl;
-          } else if (postId && !preserved.wp_url) {
-            fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
+            console.log('DEBUG: Using new postUrl from response:', result.data.postUrl);
           } else if (preserved.wp_url) {
-            fm.wp_url = preserved.wp_url; // Keep existing URL
+            // Keep existing URL exactly as is
+            fm.wp_url = preserved.wp_url;
+            console.log('DEBUG: Keeping existing URL:', preserved.wp_url);
+          } else if (postId) {
+            // Only create fallback URL if we have no existing URL at all
+            fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
+            console.log('DEBUG: Creating fallback URL for new post:', fm.wp_url);
           }
           
           // Preserve other fields - never delete them
-          if (preserved.wp_ptype) {
+          if (preserved.wp_ptype !== undefined) {
             fm.wp_ptype = preserved.wp_ptype;
           }
           if (preserved.wp_categories !== undefined) {
@@ -255,7 +270,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           if (preserved.wp_tags !== undefined) {
             fm.wp_tags = preserved.wp_tags;
           }
-          if (preserved.wp_title) {
+          if (preserved.wp_title !== undefined) {
             fm.wp_title = preserved.wp_title;
           }
           
@@ -264,12 +279,17 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           
           // Run any additional updates from modal, but after our preservation
           if (isFunction(updateMatterData)) {
+            console.log('DEBUG: Running updateMatterData callback');
             updateMatterData(fm);
             console.log('DEBUG: After updateMatterData =', JSON.stringify(fm));
           }
         });
         
         console.log('DEBUG: Frontmatter update completed');
+        
+        // Debug: Check frontmatter AFTER processFrontMatter
+        const updatedContent = await this.plugin.app.vault.read(file);
+        console.log('DEBUG: Full file content after processing:', updatedContent.substring(0, 500));
       }
 
       if (postId) {
@@ -368,9 +388,13 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       const title = file.basename;
       const { content, matter: matterData } = await processFile(file, this.plugin.app);
       
+      console.log('DEBUG: Initial matterData after processFile =', JSON.stringify(matterData));
+      
       // check if profile selected is matched to the one in note property,
       // if not, ask whether to update or not
       await this.checkExistingProfile(matterData);
+      
+      console.log('DEBUG: matterData after checkExistingProfile =', JSON.stringify(matterData));
 
       // now we're preparing the publishing data
       let postParams: WordPressPostParams;
