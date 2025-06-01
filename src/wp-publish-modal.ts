@@ -9,6 +9,8 @@ import { AbstractModal } from './abstract-modal';
 import IMask, { DynamicMaskType, InputMask } from 'imask';
 import { SafeAny } from './utils';
 import { format, parse } from 'date-fns';
+import { DropdownComponent, ButtonComponent } from 'obsidian';
+import { showError } from './utils';
 
 
 /**
@@ -171,7 +173,7 @@ export class WpPublishModal extends AbstractModal {
           });
       });
 
-    if (!this.matterData?.postId) {
+    if (!this.matterData?.wp_postId) {
       new Setting(contentEl)
         .setName(this.t('publishModal_postType'))
         .addDropdown((dropdown) => {
@@ -208,9 +210,9 @@ export class WpPublishModal extends AbstractModal {
         .setButtonText(this.t('publishModal_publishButtonText'))
         .setCta()
         .onClick(() => {
-          if (this.matterData.postType
-            && this.matterData.postType !== PostTypeConst.Post
-            && (this.matterData.tags || this.matterData.categories)
+          if (this.matterData.wp_postType
+            && this.matterData.wp_postType !== PostTypeConst.Post
+            && (this.matterData.wp_tags || this.matterData.wp_categories)
           ) {
             openConfirmModal({
               message: this.t('publishModal_wrongMatterDataForPage')
@@ -218,8 +220,8 @@ export class WpPublishModal extends AbstractModal {
               .then(result => {
                 if (result.code === ConfirmCode.Confirm) {
                   this.onSubmit(params, fm => {
-                    delete fm.categories;
-                    delete fm.tags;
+                    delete fm.wp_categories;
+                    delete fm.wp_tags;
                   });
                 }
               });

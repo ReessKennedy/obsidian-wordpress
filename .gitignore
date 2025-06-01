@@ -114,3 +114,5 @@ main.js
 
 # obsidian
 data.json
+/.specstory
+.cursorindexingignore

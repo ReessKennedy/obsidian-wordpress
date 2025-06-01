@@ -98,21 +98,21 @@ export abstract class AbstractWordPressClient implements WordPressClient {
   }
 
   private async checkExistingProfile(matterData: MatterData) {
-    const { profileName } = matterData;
-    const isProfileNameMismatch = profileName && profileName !== this.profile.name;
+    const { wp_profileName } = matterData;
+    const isProfileNameMismatch = wp_profileName && wp_profileName !== this.profile.name;
     if (isProfileNameMismatch) {
       const confirm = await openConfirmModal({
         message: this.plugin.i18n.t('error_profileNotMatch'),
         cancelText: this.plugin.i18n.t('profileNotMatch_useOld', {
-          profileName: matterData.profileName
+          profileName: matterData.wp_profileName
         }),
         confirmText: this.plugin.i18n.t('profileNotMatch_useNew', {
           profileName: this.profile.name
         })
       }, this.plugin);
       if (confirm.code !== ConfirmCode.Cancel) {
-        delete matterData.postId;
-        matterData.categories = this.profile.lastSelectedCategories ?? [ 1 ];
+        delete matterData.wp_postId;
+        matterData.wp_categories = this.profile.lastSelectedCategories ?? [ 1 ];
       }
     }
   }
@@ -150,11 +150,11 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         const file = this.plugin.app.workspace.getActiveFile();
         if (file) {
           await this.plugin.app.fileManager.processFrontMatter(file, fm => {
-            fm.profileName = this.profile.name;
-            fm.postId = postId;
-            fm.postType = postParams.postType;
+            fm.wp_profileName = this.profile.name;
+            fm.wp_postId = postId;
+            fm.wp_postType = postParams.postType;
             if (postParams.postType === PostTypeConst.Post) {
-              fm.categories = postParams.categories;
+              fm.wp_categories = postParams.categories;
             }
             if (isFunction(updateMatterData)) {
               updateMatterData(fm);
@@ -273,14 +273,14 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         });
       } else {
         const categories = await this.getCategories(auth);
-        const selectedCategories = matterData.categories as number[]
+        const selectedCategories = matterData.wp_categories as number[]
           ?? this.profile.lastSelectedCategories
           ?? [ 1 ];
         const postTypes = await this.getPostTypes(auth);
         if (postTypes.length === 0) {
           postTypes.push(PostTypeConst.Post);
         }
-        const selectedPostType = matterData.postType ?? PostTypeConst.Post;
+        const selectedPostType = matterData.wp_postType ?? PostTypeConst.Post;
         result = await new Promise(resolve => {
           const publishModal = new WpPublishModal(
             this.plugin,
@@ -344,26 +344,26 @@ export abstract class AbstractWordPressClient implements WordPressClient {
   ): WordPressPostParams {
     const postParams = { ...params };
     postParams.title = noteTitle;
-    if (matterData.title) {
-      postParams.title = matterData.title;
+    if (matterData.wp_title) {
+      postParams.title = matterData.wp_title;
     }
-    if (matterData.postId) {
-      postParams.postId = matterData.postId;
+    if (matterData.wp_postId) {
+      postParams.postId = matterData.wp_postId;
     }
-    postParams.profileName = matterData.profileName ?? WP_DEFAULT_PROFILE_NAME;
-    if (matterData.postType) {
-      postParams.postType = matterData.postType;
+    postParams.profileName = matterData.wp_profileName ?? WP_DEFAULT_PROFILE_NAME;
+    if (matterData.wp_postType) {
+      postParams.postType = matterData.wp_postType;
     } else {
       // if there is no post type in matter-data, assign it as 'post'
       postParams.postType = PostTypeConst.Post;
     }
     if (postParams.postType === PostTypeConst.Post) {
       // only 'post' supports categories and tags
-      if (matterData.categories) {
-        postParams.categories = matterData.categories as number[] ?? this.profile.lastSelectedCategories;
+      if (matterData.wp_categories) {
+        postParams.categories = matterData.wp_categories as number[] ?? this.profile.lastSelectedCategories;
       }
-      if (matterData.tags) {
-        postParams.tags = matterData.tags as string[];
+      if (matterData.wp_tags) {
+        postParams.tags = matterData.wp_tags as string[];
       }
     }
     return postParams;
