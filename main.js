@@ -77759,21 +77759,28 @@ var AbstractWordPressClient = class {
     } else {
       new import_obsidian8.Notice(this.plugin.i18n.t("message_publishSuccessfully"));
       const postId = result.data.postId;
-      if (postId) {
-        const file = this.plugin.app.workspace.getActiveFile();
-        if (file) {
-          await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
-            fm.wp_profile = this.profile.name;
+      const file = this.plugin.app.workspace.getActiveFile();
+      if (file) {
+        await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+          fm.wp_profile = this.profile.name;
+          if (postId) {
             fm.wp_url = result.data.postUrl || `${this.profile.endpoint}/?p=${postId}`;
-            fm.wp_ptype = postParams.postType;
-            if (postParams.postType === "post" /* Post */) {
-              fm.wp_categories = postParams.categories;
-            }
-            if (isFunction_default(updateMatterData)) {
-              updateMatterData(fm);
-            }
-          });
-        }
+          } else if (postParams.postId && !fm.wp_url) {
+            fm.wp_url = fm.wp_url || `${this.profile.endpoint}/?p=${postParams.postId}`;
+          }
+          fm.wp_ptype = postParams.postType;
+          if (postParams.postType === "post" /* Post */) {
+            fm.wp_categories = postParams.categories;
+          }
+          if (postParams.tags && postParams.tags.length > 0) {
+            fm.wp_tags = postParams.tags;
+          }
+          if (isFunction_default(updateMatterData)) {
+            updateMatterData(fm);
+          }
+        });
+      }
+      if (postId) {
         if (this.plugin.settings.rememberLastSelectedCategories) {
           this.profile.lastSelectedCategories = result.data.categories;
           await this.plugin.saveSettings();

@@ -212,24 +212,35 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       new Notice(this.plugin.i18n.t('message_publishSuccessfully'));
       // post id will be returned if creating, true if editing
       const postId = result.data.postId;
-      if (postId) {
-        // const modified = matter.stringify(postParams.content, matterData, matterOptions);
-        // this.updateFrontMatter(modified);
-        const file = this.plugin.app.workspace.getActiveFile();
-        if (file) {
-          await this.plugin.app.fileManager.processFrontMatter(file, fm => {
-            fm.wp_profile = this.profile.name;
-            fm.wp_url = result.data.postUrl || `${this.profile.endpoint}/?p=${postId}`; // Store the full URL instead of ID
-            fm.wp_ptype = postParams.postType;
-            if (postParams.postType === PostTypeConst.Post) {
-              fm.wp_categories = postParams.categories;
-            }
-            if (isFunction(updateMatterData)) {
-              updateMatterData(fm);
-            }
-          });
-        }
+      const file = this.plugin.app.workspace.getActiveFile();
+      
+      // Always update frontmatter, whether creating or updating
+      if (file) {
+        await this.plugin.app.fileManager.processFrontMatter(file, fm => {
+          fm.wp_profile = this.profile.name;
+          
+          // For updates, preserve existing URL if postUrl not returned, for creates use returned URL or fallback
+          if (postId) {
+            fm.wp_url = result.data.postUrl || `${this.profile.endpoint}/?p=${postId}`;
+          } else if (postParams.postId && !fm.wp_url) {
+            // This is an update but no new URL returned, preserve existing or create fallback
+            fm.wp_url = fm.wp_url || `${this.profile.endpoint}/?p=${postParams.postId}`;
+          }
+          
+          fm.wp_ptype = postParams.postType;
+          if (postParams.postType === PostTypeConst.Post) {
+            fm.wp_categories = postParams.categories;
+          }
+          if (postParams.tags && postParams.tags.length > 0) {
+            fm.wp_tags = postParams.tags;
+          }
+          if (isFunction(updateMatterData)) {
+            updateMatterData(fm);
+          }
+        });
+      }
 
+      if (postId) {
         if (this.plugin.settings.rememberLastSelectedCategories) {
           this.profile.lastSelectedCategories = (result.data as SafeAny).categories;
           await this.plugin.saveSettings();
