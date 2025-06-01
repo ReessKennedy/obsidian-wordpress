@@ -219,12 +219,17 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         await this.plugin.app.fileManager.processFrontMatter(file, fm => {
           fm.wp_profile = this.profile.name;
           
-          // For updates, preserve existing URL if postUrl not returned, for creates use returned URL or fallback
+          // Handle URL preservation for both new posts and updates
           if (postId) {
+            // New post created or update with postId returned
             fm.wp_url = result.data.postUrl || `${this.profile.endpoint}/?p=${postId}`;
-          } else if (postParams.postId && !fm.wp_url) {
-            // This is an update but no new URL returned, preserve existing or create fallback
-            fm.wp_url = fm.wp_url || `${this.profile.endpoint}/?p=${postParams.postId}`;
+          } else if (postParams.postId) {
+            // This is an update but no postId returned in response - preserve existing URL
+            if (!fm.wp_url) {
+              // Fallback if somehow wp_url got lost
+              fm.wp_url = `${this.profile.endpoint}/?p=${postParams.postId}`;
+            }
+            // If fm.wp_url already exists, leave it unchanged
           }
           
           fm.wp_ptype = postParams.postType;

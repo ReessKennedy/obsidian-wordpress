@@ -77765,8 +77765,10 @@ var AbstractWordPressClient = class {
           fm.wp_profile = this.profile.name;
           if (postId) {
             fm.wp_url = result.data.postUrl || `${this.profile.endpoint}/?p=${postId}`;
-          } else if (postParams.postId && !fm.wp_url) {
-            fm.wp_url = fm.wp_url || `${this.profile.endpoint}/?p=${postParams.postId}`;
+          } else if (postParams.postId) {
+            if (!fm.wp_url) {
+              fm.wp_url = `${this.profile.endpoint}/?p=${postParams.postId}`;
+            }
           }
           fm.wp_ptype = postParams.postType;
           if (postParams.postType === "post" /* Post */) {
