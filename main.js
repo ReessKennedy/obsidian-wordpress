@@ -77773,9 +77773,10 @@ var AbstractWordPressClient = class {
           fm.wp_ptype = postParams.postType;
           if (postParams.postType === "post" /* Post */) {
             fm.wp_categories = postParams.categories;
+            fm.wp_tags = postParams.tags || [];
           }
-          if (postParams.tags && postParams.tags.length > 0) {
-            fm.wp_tags = postParams.tags;
+          if (postParams.title && postParams.title !== file.basename) {
+            fm.wp_title = postParams.title;
           }
           if (isFunction_default(updateMatterData)) {
             updateMatterData(fm);
@@ -77960,16 +77961,16 @@ var AbstractWordPressClient = class {
       }
     }
     postParams.profileName = (_a2 = matterData.wp_profile) != null ? _a2 : WP_DEFAULT_PROFILE_NAME;
-    if (matterData.wp_ptype) {
+    if (matterData.wp_ptype !== void 0) {
       postParams.postType = matterData.wp_ptype;
     } else {
       postParams.postType = "post" /* Post */;
     }
     if (postParams.postType === "post" /* Post */) {
-      if (matterData.wp_categories) {
+      if (matterData.wp_categories !== void 0) {
         postParams.categories = (_b = matterData.wp_categories) != null ? _b : this.profile.lastSelectedCategories;
       }
-      if (matterData.wp_tags) {
+      if (matterData.wp_tags !== void 0) {
         postParams.tags = matterData.wp_tags;
       }
     }

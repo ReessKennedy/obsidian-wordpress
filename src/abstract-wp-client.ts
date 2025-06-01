@@ -232,13 +232,18 @@ export abstract class AbstractWordPressClient implements WordPressClient {
             // If fm.wp_url already exists, leave it unchanged
           }
           
+          // Always set these fields to preserve them, even if empty
           fm.wp_ptype = postParams.postType;
           if (postParams.postType === PostTypeConst.Post) {
             fm.wp_categories = postParams.categories;
+            fm.wp_tags = postParams.tags || [];  // Always set, even if empty
           }
-          if (postParams.tags && postParams.tags.length > 0) {
-            fm.wp_tags = postParams.tags;
+          
+          // Set title if it was customized
+          if (postParams.title && postParams.title !== file.basename) {
+            fm.wp_title = postParams.title;
           }
+          
           if (isFunction(updateMatterData)) {
             updateMatterData(fm);
           }
@@ -454,7 +459,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       }
     }
     postParams.profileName = matterData.wp_profile ?? WP_DEFAULT_PROFILE_NAME;
-    if (matterData.wp_ptype) {
+    if (matterData.wp_ptype !== undefined) {
       postParams.postType = matterData.wp_ptype;
     } else {
       // if there is no post type in matter-data, assign it as 'post'
@@ -462,10 +467,10 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     }
     if (postParams.postType === PostTypeConst.Post) {
       // only 'post' supports categories and tags
-      if (matterData.wp_categories) {
+      if (matterData.wp_categories !== undefined) {
         postParams.categories = matterData.wp_categories as number[] ?? this.profile.lastSelectedCategories;
       }
-      if (matterData.wp_tags) {
+      if (matterData.wp_tags !== undefined) {
         postParams.tags = matterData.wp_tags as string[];
       }
     }
