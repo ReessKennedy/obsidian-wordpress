@@ -77761,27 +77761,47 @@ var AbstractWordPressClient = class {
       const postId = result.data.postId;
       const file = this.plugin.app.workspace.getActiveFile();
       if (file) {
+        console.log("DEBUG: Before frontmatter update");
+        console.log("DEBUG: postId =", postId);
+        console.log("DEBUG: postParams =", JSON.stringify(postParams));
         await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+          console.log("DEBUG: Original frontmatter =", JSON.stringify(fm));
+          const preserved = {
+            wp_url: fm.wp_url,
+            wp_profile: fm.wp_profile,
+            wp_ptype: fm.wp_ptype,
+            wp_categories: fm.wp_categories,
+            wp_tags: fm.wp_tags,
+            wp_title: fm.wp_title
+          };
           fm.wp_profile = this.profile.name;
-          if (postId) {
-            fm.wp_url = result.data.postUrl || `${this.profile.endpoint}/?p=${postId}`;
-          } else if (postParams.postId) {
-            if (!fm.wp_url) {
-              fm.wp_url = `${this.profile.endpoint}/?p=${postParams.postId}`;
-            }
+          if (postId && result.data.postUrl) {
+            fm.wp_url = result.data.postUrl;
+          } else if (postId && !preserved.wp_url) {
+            fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
+          } else if (preserved.wp_url) {
+            fm.wp_url = preserved.wp_url;
           }
-          fm.wp_ptype = postParams.postType;
-          if (postParams.postType === "post" /* Post */) {
-            fm.wp_categories = postParams.categories;
-            fm.wp_tags = postParams.tags || [];
+          if (preserved.wp_ptype) {
+            fm.wp_ptype = preserved.wp_ptype;
           }
-          if (postParams.title && postParams.title !== file.basename) {
-            fm.wp_title = postParams.title;
+          if (preserved.wp_categories !== void 0) {
+            fm.wp_categories = preserved.wp_categories;
           }
+          if (preserved.wp_tags !== void 0) {
+            fm.wp_tags = preserved.wp_tags;
+          }
+          if (preserved.wp_title) {
+            fm.wp_title = preserved.wp_title;
+          }
+          console.log("DEBUG: Preserved values =", JSON.stringify(preserved));
+          console.log("DEBUG: Final frontmatter =", JSON.stringify(fm));
           if (isFunction_default(updateMatterData)) {
             updateMatterData(fm);
+            console.log("DEBUG: After updateMatterData =", JSON.stringify(fm));
           }
         });
+        console.log("DEBUG: Frontmatter update completed");
       }
       if (postId) {
         if (this.plugin.settings.rememberLastSelectedCategories) {

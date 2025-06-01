@@ -216,38 +216,60 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       
       // Always update frontmatter, whether creating or updating
       if (file) {
+        console.log('DEBUG: Before frontmatter update');
+        console.log('DEBUG: postId =', postId);
+        console.log('DEBUG: postParams =', JSON.stringify(postParams));
+        
         await this.plugin.app.fileManager.processFrontMatter(file, fm => {
+          console.log('DEBUG: Original frontmatter =', JSON.stringify(fm));
+          
+          // Store ALL original WordPress frontmatter to ensure preservation
+          const preserved = {
+            wp_url: fm.wp_url,
+            wp_profile: fm.wp_profile,
+            wp_ptype: fm.wp_ptype,
+            wp_categories: fm.wp_categories,
+            wp_tags: fm.wp_tags,
+            wp_title: fm.wp_title
+          };
+          
+          // Only update fields that should actually change
           fm.wp_profile = this.profile.name;
           
-          // Handle URL preservation for both new posts and updates
-          if (postId) {
-            // New post created or update with postId returned
-            fm.wp_url = result.data.postUrl || `${this.profile.endpoint}/?p=${postId}`;
-          } else if (postParams.postId) {
-            // This is an update but no postId returned in response - preserve existing URL
-            if (!fm.wp_url) {
-              // Fallback if somehow wp_url got lost
-              fm.wp_url = `${this.profile.endpoint}/?p=${postParams.postId}`;
-            }
-            // If fm.wp_url already exists, leave it unchanged
+          // Handle URL - only update if we have new info
+          if (postId && result.data.postUrl) {
+            fm.wp_url = result.data.postUrl;
+          } else if (postId && !preserved.wp_url) {
+            fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
+          } else if (preserved.wp_url) {
+            fm.wp_url = preserved.wp_url; // Keep existing URL
           }
           
-          // Always set these fields to preserve them, even if empty
-          fm.wp_ptype = postParams.postType;
-          if (postParams.postType === PostTypeConst.Post) {
-            fm.wp_categories = postParams.categories;
-            fm.wp_tags = postParams.tags || [];  // Always set, even if empty
+          // Preserve other fields - never delete them
+          if (preserved.wp_ptype) {
+            fm.wp_ptype = preserved.wp_ptype;
+          }
+          if (preserved.wp_categories !== undefined) {
+            fm.wp_categories = preserved.wp_categories;
+          }
+          if (preserved.wp_tags !== undefined) {
+            fm.wp_tags = preserved.wp_tags;
+          }
+          if (preserved.wp_title) {
+            fm.wp_title = preserved.wp_title;
           }
           
-          // Set title if it was customized
-          if (postParams.title && postParams.title !== file.basename) {
-            fm.wp_title = postParams.title;
-          }
+          console.log('DEBUG: Preserved values =', JSON.stringify(preserved));
+          console.log('DEBUG: Final frontmatter =', JSON.stringify(fm));
           
+          // Run any additional updates from modal, but after our preservation
           if (isFunction(updateMatterData)) {
             updateMatterData(fm);
+            console.log('DEBUG: After updateMatterData =', JSON.stringify(fm));
           }
         });
+        
+        console.log('DEBUG: Frontmatter update completed');
       }
 
       if (postId) {
