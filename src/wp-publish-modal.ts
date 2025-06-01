@@ -173,7 +173,7 @@ export class WpPublishModal extends AbstractModal {
           });
       });
 
-    if (!this.matterData?.wp_pid) {
+    if (!this.matterData?.wp_url) {
       new Setting(contentEl)
         .setName(this.t('publishModal_postType'))
         .addDropdown((dropdown) => {

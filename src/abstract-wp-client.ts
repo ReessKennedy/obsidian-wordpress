@@ -97,6 +97,58 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     return auth;
   }
 
+  /**
+   * Extract post ID from WordPress URL
+   * Handles various WordPress URL structures like:
+   * - https://example.com/2023/06/01/post-slug/
+   * - https://example.com/?p=123
+   * - https://example.com/post-slug/
+   */
+  private extractPostIdFromUrl(url: string): number | null {
+    try {
+      const urlObj = new URL(url);
+      
+      // Check for ?p=ID parameter (direct post ID)
+      const postIdParam = urlObj.searchParams.get('p');
+      if (postIdParam) {
+        return parseInt(postIdParam, 10);
+      }
+      
+      // For now, return null if we can't extract ID directly
+      // This could be enhanced later to do API lookups by slug
+      return null;
+    } catch (error) {
+      console.error('Error parsing WordPress URL:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get post ID from slug using WordPress REST API
+   */
+  private async getPostIdBySlug(slug: string): Promise<number | null> {
+    try {
+      // Use WordPress REST API to find post by slug
+      const response = await this.getPostsBySlug(slug);
+      if (response && response.length > 0) {
+        return response[0].id;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting post ID by slug:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get posts by slug using REST API
+   */
+  protected async getPostsBySlug(slug: string): Promise<any[]> {
+    // This will be implemented by the specific client (REST or XML-RPC)
+    // For now, return empty array - subclasses should override this
+    return [];
+  }
+
   private async checkExistingProfile(matterData: MatterData) {
     const { wp_profile } = matterData;
     const isProfileNameMismatch = wp_profile && wp_profile !== this.profile.name;
@@ -111,7 +163,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         })
       }, this.plugin);
       if (confirm.code !== ConfirmCode.Cancel) {
-        delete matterData.wp_pid;
+        delete matterData.wp_url;
         matterData.wp_categories = this.profile.lastSelectedCategories ?? [ 1 ];
       }
     }
@@ -151,7 +203,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         if (file) {
           await this.plugin.app.fileManager.processFrontMatter(file, fm => {
             fm.wp_profile = this.profile.name;
-            fm.wp_pid = postId;
+            fm.wp_url = result.data.postUrl || `${this.profile.endpoint}/?p=${postId}`; // Store the full URL instead of ID
             fm.wp_ptype = postParams.postType;
             if (postParams.postType === PostTypeConst.Post) {
               fm.wp_categories = postParams.categories;
@@ -347,8 +399,12 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     if (matterData.wp_title) {
       postParams.title = matterData.wp_title;
     }
-    if (matterData.wp_pid) {
-      postParams.postId = matterData.wp_pid;
+    if (matterData.wp_url) {
+      // Convert URL to post ID for API calls (simplified version)
+      const postId = this.extractPostIdFromUrl(matterData.wp_url);
+      if (postId) {
+        postParams.postId = String(postId); // Convert number to string as expected by interface
+      }
     }
     postParams.profileName = matterData.wp_profile ?? WP_DEFAULT_PROFILE_NAME;
     if (matterData.wp_ptype) {

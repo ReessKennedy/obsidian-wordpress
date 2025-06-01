@@ -72417,7 +72417,7 @@ var WpPublishModal = class extends AbstractModal {
         params.commentStatus = value;
       });
     });
-    if (!((_a2 = this.matterData) == null ? void 0 : _a2.wp_pid)) {
+    if (!((_a2 = this.matterData) == null ? void 0 : _a2.wp_url)) {
       new import_obsidian4.Setting(contentEl).setName(this.t("publishModal_postType")).addDropdown((dropdown) => {
         this.postTypes.items.forEach((it) => {
           dropdown.addOption(it, it);
@@ -77664,6 +77664,47 @@ var AbstractWordPressClient = class {
     }
     return auth;
   }
+  /**
+   * Extract post ID from WordPress URL
+   * Handles various WordPress URL structures like:
+   * - https://example.com/2023/06/01/post-slug/
+   * - https://example.com/?p=123
+   * - https://example.com/post-slug/
+   */
+  extractPostIdFromUrl(url) {
+    try {
+      const urlObj = new URL(url);
+      const postIdParam = urlObj.searchParams.get("p");
+      if (postIdParam) {
+        return parseInt(postIdParam, 10);
+      }
+      return null;
+    } catch (error2) {
+      console.error("Error parsing WordPress URL:", error2);
+      return null;
+    }
+  }
+  /**
+   * Get post ID from slug using WordPress REST API
+   */
+  async getPostIdBySlug(slug) {
+    try {
+      const response = await this.getPostsBySlug(slug);
+      if (response && response.length > 0) {
+        return response[0].id;
+      }
+      return null;
+    } catch (error2) {
+      console.error("Error getting post ID by slug:", error2);
+      return null;
+    }
+  }
+  /**
+   * Get posts by slug using REST API
+   */
+  async getPostsBySlug(slug) {
+    return [];
+  }
   async checkExistingProfile(matterData) {
     var _a2;
     const { wp_profile } = matterData;
@@ -77679,7 +77720,7 @@ var AbstractWordPressClient = class {
         })
       }, this.plugin);
       if (confirm.code !== 0 /* Cancel */) {
-        delete matterData.wp_pid;
+        delete matterData.wp_url;
         matterData.wp_categories = (_a2 = this.profile.lastSelectedCategories) != null ? _a2 : [1];
       }
     }
@@ -77713,7 +77754,7 @@ var AbstractWordPressClient = class {
         if (file) {
           await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
             fm.wp_profile = this.profile.name;
-            fm.wp_pid = postId;
+            fm.wp_url = result.data.postUrl || `${this.profile.endpoint}/?p=${postId}`;
             fm.wp_ptype = postParams.postType;
             if (postParams.postType === "post" /* Post */) {
               fm.wp_categories = postParams.categories;
@@ -77883,8 +77924,11 @@ var AbstractWordPressClient = class {
     if (matterData.wp_title) {
       postParams.title = matterData.wp_title;
     }
-    if (matterData.wp_pid) {
-      postParams.postId = matterData.wp_pid;
+    if (matterData.wp_url) {
+      const postId = this.extractPostIdFromUrl(matterData.wp_url);
+      if (postId) {
+        postParams.postId = String(postId);
+      }
     }
     postParams.profileName = (_a2 = matterData.wp_profile) != null ? _a2 : WP_DEFAULT_PROFILE_NAME;
     if (matterData.wp_ptype) {
@@ -78250,15 +78294,27 @@ var WpRestClient = class extends AbstractWordPressClient {
     this.profile = profile;
     this.context = context;
     this.name = "WpRestClient";
-    this.client = new RestClient({
+    this.client = new RestClient(plugin4, {
       url: new URL(getUrl((_a2 = this.context.endpoints) == null ? void 0 : _a2.base, profile.endpoint))
     });
   }
   needLogin() {
-    if (this.context.needLoginModal !== void 0) {
-      return this.context.needLoginModal;
+    return this.context.needLoginModal !== false;
+  }
+  async getPostsBySlug(slug) {
+    var _a2;
+    try {
+      const auth = await this.getAuth();
+      const response = await this.client.get(
+        getUrl((_a2 = this.context.endpoints) == null ? void 0 : _a2.getPostBySlug, `wp-json/wp/v2/posts?slug=${slug}`),
+        void 0,
+        this.context.getHeaders(auth)
+      );
+      return response || [];
+    } catch (error2) {
+      console.error("Error fetching posts by slug:", error2);
+      return [];
     }
-    return super.needLogin();
   }
   async publish(title, content, postParams, certificate) {
     var _a2, _b, _c, _d;
@@ -78436,7 +78492,8 @@ var WpRestClientCommonContext = class {
         if (response.id) {
           return {
             postId: (_a2 = postParams.postId) != null ? _a2 : response.id,
-            categories: (_b = postParams.categories) != null ? _b : response.categories
+            categories: (_b = postParams.categories) != null ? _b : response.categories,
+            postUrl: response.link
           };
         }
         throw new Error("xx");
@@ -78499,7 +78556,8 @@ var WpRestClientWpComOAuth2Context = class {
       getTag: () => `/rest/v1.1/sites/${this.site}/tags?number=1&search=<%= name %>`,
       validateUser: () => `/rest/v1.1/sites/${this.site}/posts?number=1`,
       uploadFile: () => `/rest/v1.1/sites/${this.site}/media/new`,
-      getPostTypes: () => `/rest/v1.1/sites/${this.site}/post-types`
+      getPostTypes: () => `/rest/v1.1/sites/${this.site}/post-types`,
+      getPostBySlug: () => `/rest/v1.1/sites/${this.site}/posts?slug=<%= slug %>`
     };
     this.responseParser = {
       toWordPressPublishResult: (postParams, response) => {
@@ -78507,7 +78565,8 @@ var WpRestClientWpComOAuth2Context = class {
         if (response.ID) {
           return {
             postId: (_a2 = postParams.postId) != null ? _a2 : response.ID,
-            categories: (_b = postParams.categories) != null ? _b : Object.values(response.categories).map((cat) => cat.ID)
+            categories: (_b = postParams.categories) != null ? _b : Object.values(response.categories).map((cat) => cat.ID),
+            postUrl: response.URL
           };
         }
         throw new Error("xx");

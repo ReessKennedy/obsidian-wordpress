@@ -81,6 +81,7 @@ export interface WordPressPublishParams extends WordPressAuthParams {
 export interface WordPressPublishResult {
   postId: string;
   categories: number[];
+  postUrl?: string;
 }
 
 export interface WordPressMediaUploadResult {

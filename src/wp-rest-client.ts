@@ -27,10 +27,12 @@ interface WpRestEndpoint {
   validateUser: string | UrlGetter;
   uploadFile: string | UrlGetter;
   getPostTypes: string | UrlGetter;
+  getPostBySlug: string | UrlGetter;
 }
 
 export class WpRestClient extends AbstractWordPressClient {
 
+  name = 'WpRestClient';
   private readonly client: RestClient;
 
   constructor(
@@ -39,17 +41,28 @@ export class WpRestClient extends AbstractWordPressClient {
     private readonly context: WpRestClientContext
   ) {
     super(plugin, profile);
-    this.name = 'WpRestClient';
-    this.client = new RestClient({
+    this.client = new RestClient(plugin, {
       url: new URL(getUrl(this.context.endpoints?.base, profile.endpoint))
     });
   }
 
   protected needLogin(): boolean {
-    if (this.context.needLoginModal !== undefined) {
-      return this.context.needLoginModal;
+    return this.context.needLoginModal !== false;
+  }
+
+  protected async getPostsBySlug(slug: string): Promise<any[]> {
+    try {
+      const auth = await this.getAuth();
+      const response = await this.client.get(
+        getUrl(this.context.endpoints?.getPostBySlug, `wp-json/wp/v2/posts?slug=${slug}`),
+        undefined,
+        this.context.getHeaders(auth)
+      );
+      return response || [];
+    } catch (error) {
+      console.error('Error fetching posts by slug:', error);
+      return [];
     }
-    return  super.needLogin();
   }
 
   async publish(
@@ -268,7 +281,8 @@ class WpRestClientCommonContext implements WpRestClientContext {
       if (response.id) {
         return {
           postId: postParams.postId ?? response.id,
-          categories: postParams.categories ?? response.categories
+          categories: postParams.categories ?? response.categories,
+          postUrl: response.link
         }
       }
       throw new Error('xx');
@@ -330,6 +344,7 @@ export class WpRestClientWpComOAuth2Context implements WpRestClientContext {
     validateUser: () => `/rest/v1.1/sites/${this.site}/posts?number=1`,
     uploadFile: () => `/rest/v1.1/sites/${this.site}/media/new`,
     getPostTypes: () => `/rest/v1.1/sites/${this.site}/post-types`,
+    getPostBySlug: () => `/rest/v1.1/sites/${this.site}/posts?slug=<%= slug %>`,
   };
 
   constructor(
@@ -357,7 +372,8 @@ export class WpRestClientWpComOAuth2Context implements WpRestClientContext {
       if (response.ID) {
         return {
           postId: postParams.postId ?? response.ID,
-          categories: postParams.categories ?? Object.values(response.categories).map((cat: SafeAny) => cat.ID)
+          categories: postParams.categories ?? Object.values(response.categories).map((cat: SafeAny) => cat.ID),
+          postUrl: response.URL
         };
       }
       throw new Error('xx');
