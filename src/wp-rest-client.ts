@@ -49,6 +49,20 @@ export class WpRestClient extends AbstractWordPressClient {
     return this.context.needLoginModal !== false;
   }
 
+  // Implementation of getPostsBySlug for URL to ID conversion
+  protected async getPostsBySlug(slug: string): Promise<any[]> {
+    try {
+      // Try without authentication first, as post lookups are usually public
+      const response = await this.client.httpGet(
+        `wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}`
+      );
+      return Array.isArray(response) ? response : [];
+    } catch (error) {
+      console.error('Error fetching posts by slug:', error);
+      return [];
+    }
+  }
+
   async publish(
     title: string,
     content: string,

@@ -77671,14 +77671,24 @@ var AbstractWordPressClient = class {
    * - https://example.com/?p=123
    * - https://example.com/post-slug/
    */
-  extractPostIdFromUrl(url) {
+  async extractPostIdFromUrl(url) {
     try {
       const urlObj = new URL(url);
       const postIdParam = urlObj.searchParams.get("p");
       if (postIdParam) {
         return parseInt(postIdParam, 10);
       }
-      return null;
+      const pathname = urlObj.pathname;
+      const segments = pathname.split("/").filter((segment) => segment.length > 0);
+      if (segments.length === 0) {
+        return null;
+      }
+      let slug = segments[segments.length - 1];
+      slug = slug.replace(/\.(html|php|htm)$/i, "");
+      if (slug.length === 0) {
+        return null;
+      }
+      return await this.getPostIdBySlug(slug);
     } catch (error2) {
       console.error("Error parsing WordPress URL:", error2);
       return null;
@@ -77691,7 +77701,7 @@ var AbstractWordPressClient = class {
     try {
       const response = await this.getPostsBySlug(slug);
       if (response && response.length > 0) {
-        return response[0].id;
+        return parseInt(response[0].id, 10);
       }
       return null;
     } catch (error2) {
@@ -77849,7 +77859,7 @@ var AbstractWordPressClient = class {
       let postParams;
       let result;
       if (defaultPostParams) {
-        postParams = this.readFromFrontMatter(title, matterData, defaultPostParams);
+        postParams = await this.readFromFrontMatter(title, matterData, defaultPostParams);
         postParams.content = content;
         result = await this.tryToPublish({
           auth,
@@ -77869,7 +77879,7 @@ var AbstractWordPressClient = class {
             { items: categories, selected: selectedCategories },
             { items: postTypes, selected: selectedPostType },
             async (postParams2, updateMatterData) => {
-              postParams2 = this.readFromFrontMatter(title, matterData, postParams2);
+              postParams2 = await this.readFromFrontMatter(title, matterData, postParams2);
               postParams2.content = content;
               try {
                 const r = await this.tryToPublish({
@@ -77917,7 +77927,7 @@ var AbstractWordPressClient = class {
     });
     return terms;
   }
-  readFromFrontMatter(noteTitle, matterData, params) {
+  async readFromFrontMatter(noteTitle, matterData, params) {
     var _a2, _b;
     const postParams = { ...params };
     postParams.title = noteTitle;
@@ -77925,7 +77935,7 @@ var AbstractWordPressClient = class {
       postParams.title = matterData.wp_title;
     }
     if (matterData.wp_url) {
-      const postId = this.extractPostIdFromUrl(matterData.wp_url);
+      const postId = await this.extractPostIdFromUrl(matterData.wp_url);
       if (postId) {
         postParams.postId = String(postId);
       }
@@ -78300,6 +78310,18 @@ var WpRestClient = class extends AbstractWordPressClient {
   }
   needLogin() {
     return this.context.needLoginModal !== false;
+  }
+  // Implementation of getPostsBySlug for URL to ID conversion
+  async getPostsBySlug(slug) {
+    try {
+      const response = await this.client.httpGet(
+        `wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}`
+      );
+      return Array.isArray(response) ? response : [];
+    } catch (error2) {
+      console.error("Error fetching posts by slug:", error2);
+      return [];
+    }
   }
   async publish(title, content, postParams, certificate) {
     var _a2, _b, _c, _d;

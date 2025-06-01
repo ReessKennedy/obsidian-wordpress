@@ -104,7 +104,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
    * - https://example.com/?p=123
    * - https://example.com/post-slug/
    */
-  private extractPostIdFromUrl(url: string): number | null {
+  private async extractPostIdFromUrl(url: string): Promise<number | null> {
     try {
       const urlObj = new URL(url);
       
@@ -114,9 +114,25 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         return parseInt(postIdParam, 10);
       }
       
-      // For now, return null if we can't extract ID directly
-      // This could be enhanced later to do API lookups by slug
-      return null;
+      // Extract slug from URL path
+      const pathname = urlObj.pathname;
+      const segments = pathname.split('/').filter(segment => segment.length > 0);
+      
+      if (segments.length === 0) {
+        return null;
+      }
+      
+      // Get the last segment as the slug (most common case)
+      // Remove file extensions if present (e.g., .html, .php)
+      let slug = segments[segments.length - 1];
+      slug = slug.replace(/\.(html|php|htm)$/i, '');
+      
+      if (slug.length === 0) {
+        return null;
+      }
+      
+      // Look up post ID by slug using WordPress API
+      return await this.getPostIdBySlug(slug);
     } catch (error) {
       console.error('Error parsing WordPress URL:', error);
       return null;
@@ -131,7 +147,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       // Use WordPress REST API to find post by slug
       const response = await this.getPostsBySlug(slug);
       if (response && response.length > 0) {
-        return response[0].id;
+        return parseInt(response[0].id, 10);
       }
       return null;
     } catch (error) {
@@ -317,7 +333,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       let postParams: WordPressPostParams;
       let result: WordPressClientResult<WordPressPublishResult> | undefined;
       if (defaultPostParams) {
-        postParams = this.readFromFrontMatter(title, matterData, defaultPostParams);
+        postParams = await this.readFromFrontMatter(title, matterData, defaultPostParams);
         postParams.content = content;
         result = await this.tryToPublish({
           auth,
@@ -339,7 +355,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
             { items: categories, selected: selectedCategories },
             { items: postTypes, selected: selectedPostType },
             async (postParams: WordPressPostParams, updateMatterData: (matter: MatterData) => void) => {
-              postParams = this.readFromFrontMatter(title, matterData, postParams);
+              postParams = await this.readFromFrontMatter(title, matterData, postParams);
               postParams.content = content;
               try {
                 const r = await this.tryToPublish({
@@ -389,19 +405,19 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     return terms;
   }
 
-  private readFromFrontMatter(
+  private async readFromFrontMatter(
     noteTitle: string,
     matterData: MatterData,
     params: WordPressPostParams
-  ): WordPressPostParams {
+  ): Promise<WordPressPostParams> {
     const postParams = { ...params };
     postParams.title = noteTitle;
     if (matterData.wp_title) {
       postParams.title = matterData.wp_title;
     }
     if (matterData.wp_url) {
-      // Convert URL to post ID for API calls (simplified version)
-      const postId = this.extractPostIdFromUrl(matterData.wp_url);
+      // Convert URL to post ID for API calls (now properly handles slugs)
+      const postId = await this.extractPostIdFromUrl(matterData.wp_url);
       if (postId) {
         postParams.postId = String(postId); // Convert number to string as expected by interface
       }
