@@ -173,7 +173,7 @@ export class WpPublishModal extends AbstractModal {
           });
       });
 
-    if (!this.matterData?.wp_postId) {
+    if (!this.matterData?.wp_pid) {
       new Setting(contentEl)
         .setName(this.t('publishModal_postType'))
         .addDropdown((dropdown) => {
@@ -210,8 +210,8 @@ export class WpPublishModal extends AbstractModal {
         .setButtonText(this.t('publishModal_publishButtonText'))
         .setCta()
         .onClick(() => {
-          if (this.matterData.wp_postType
-            && this.matterData.wp_postType !== PostTypeConst.Post
+          if (this.matterData.wp_ptype
+            && this.matterData.wp_ptype !== PostTypeConst.Post
             && (this.matterData.wp_tags || this.matterData.wp_categories)
           ) {
             openConfirmModal({

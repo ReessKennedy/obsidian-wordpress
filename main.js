@@ -72417,7 +72417,7 @@ var WpPublishModal = class extends AbstractModal {
         params.commentStatus = value;
       });
     });
-    if (!((_a2 = this.matterData) == null ? void 0 : _a2.wp_postId)) {
+    if (!((_a2 = this.matterData) == null ? void 0 : _a2.wp_pid)) {
       new import_obsidian4.Setting(contentEl).setName(this.t("publishModal_postType")).addDropdown((dropdown) => {
         this.postTypes.items.forEach((it) => {
           dropdown.addOption(it, it);
@@ -72442,7 +72442,7 @@ var WpPublishModal = class extends AbstractModal {
     }
     new import_obsidian4.Setting(contentEl).addButton(
       (button) => button.setButtonText(this.t("publishModal_publishButtonText")).setCta().onClick(() => {
-        if (this.matterData.wp_postType && this.matterData.wp_postType !== "post" /* Post */ && (this.matterData.wp_tags || this.matterData.wp_categories)) {
+        if (this.matterData.wp_ptype && this.matterData.wp_ptype !== "post" /* Post */ && (this.matterData.wp_tags || this.matterData.wp_categories)) {
           openConfirmModal({
             message: this.t("publishModal_wrongMatterDataForPage")
           }, this.plugin).then((result) => {
@@ -77666,20 +77666,20 @@ var AbstractWordPressClient = class {
   }
   async checkExistingProfile(matterData) {
     var _a2;
-    const { wp_profileName } = matterData;
-    const isProfileNameMismatch = wp_profileName && wp_profileName !== this.profile.name;
+    const { wp_profile } = matterData;
+    const isProfileNameMismatch = wp_profile && wp_profile !== this.profile.name;
     if (isProfileNameMismatch) {
       const confirm = await openConfirmModal({
         message: this.plugin.i18n.t("error_profileNotMatch"),
         cancelText: this.plugin.i18n.t("profileNotMatch_useOld", {
-          profileName: matterData.wp_profileName
+          profileName: matterData.wp_profile
         }),
         confirmText: this.plugin.i18n.t("profileNotMatch_useNew", {
           profileName: this.profile.name
         })
       }, this.plugin);
       if (confirm.code !== 0 /* Cancel */) {
-        delete matterData.wp_postId;
+        delete matterData.wp_pid;
         matterData.wp_categories = (_a2 = this.profile.lastSelectedCategories) != null ? _a2 : [1];
       }
     }
@@ -77712,9 +77712,9 @@ var AbstractWordPressClient = class {
         const file = this.plugin.app.workspace.getActiveFile();
         if (file) {
           await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
-            fm.wp_profileName = this.profile.name;
-            fm.wp_postId = postId;
-            fm.wp_postType = postParams.postType;
+            fm.wp_profile = this.profile.name;
+            fm.wp_pid = postId;
+            fm.wp_ptype = postParams.postType;
             if (postParams.postType === "post" /* Post */) {
               fm.wp_categories = postParams.categories;
             }
@@ -77821,7 +77821,7 @@ var AbstractWordPressClient = class {
         if (postTypes.length === 0) {
           postTypes.push("post" /* Post */);
         }
-        const selectedPostType = (_c = matterData.wp_postType) != null ? _c : "post" /* Post */;
+        const selectedPostType = (_c = matterData.wp_ptype) != null ? _c : "post" /* Post */;
         result = await new Promise((resolve) => {
           const publishModal = new WpPublishModal(
             this.plugin,
@@ -77883,12 +77883,12 @@ var AbstractWordPressClient = class {
     if (matterData.wp_title) {
       postParams.title = matterData.wp_title;
     }
-    if (matterData.wp_postId) {
-      postParams.postId = matterData.wp_postId;
+    if (matterData.wp_pid) {
+      postParams.postId = matterData.wp_pid;
     }
-    postParams.profileName = (_a2 = matterData.wp_profileName) != null ? _a2 : WP_DEFAULT_PROFILE_NAME;
-    if (matterData.wp_postType) {
-      postParams.postType = matterData.wp_postType;
+    postParams.profileName = (_a2 = matterData.wp_profile) != null ? _a2 : WP_DEFAULT_PROFILE_NAME;
+    if (matterData.wp_ptype) {
+      postParams.postType = matterData.wp_ptype;
     } else {
       postParams.postType = "post" /* Post */;
     }

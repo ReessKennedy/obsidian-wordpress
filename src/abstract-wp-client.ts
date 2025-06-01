@@ -98,20 +98,20 @@ export abstract class AbstractWordPressClient implements WordPressClient {
   }
 
   private async checkExistingProfile(matterData: MatterData) {
-    const { wp_profileName } = matterData;
-    const isProfileNameMismatch = wp_profileName && wp_profileName !== this.profile.name;
+    const { wp_profile } = matterData;
+    const isProfileNameMismatch = wp_profile && wp_profile !== this.profile.name;
     if (isProfileNameMismatch) {
       const confirm = await openConfirmModal({
         message: this.plugin.i18n.t('error_profileNotMatch'),
         cancelText: this.plugin.i18n.t('profileNotMatch_useOld', {
-          profileName: matterData.wp_profileName
+          profileName: matterData.wp_profile
         }),
         confirmText: this.plugin.i18n.t('profileNotMatch_useNew', {
           profileName: this.profile.name
         })
       }, this.plugin);
       if (confirm.code !== ConfirmCode.Cancel) {
-        delete matterData.wp_postId;
+        delete matterData.wp_pid;
         matterData.wp_categories = this.profile.lastSelectedCategories ?? [ 1 ];
       }
     }
@@ -150,9 +150,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         const file = this.plugin.app.workspace.getActiveFile();
         if (file) {
           await this.plugin.app.fileManager.processFrontMatter(file, fm => {
-            fm.wp_profileName = this.profile.name;
-            fm.wp_postId = postId;
-            fm.wp_postType = postParams.postType;
+            fm.wp_profile = this.profile.name;
+            fm.wp_pid = postId;
+            fm.wp_ptype = postParams.postType;
             if (postParams.postType === PostTypeConst.Post) {
               fm.wp_categories = postParams.categories;
             }
@@ -280,7 +280,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         if (postTypes.length === 0) {
           postTypes.push(PostTypeConst.Post);
         }
-        const selectedPostType = matterData.wp_postType ?? PostTypeConst.Post;
+        const selectedPostType = matterData.wp_ptype ?? PostTypeConst.Post;
         result = await new Promise(resolve => {
           const publishModal = new WpPublishModal(
             this.plugin,
@@ -347,12 +347,12 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     if (matterData.wp_title) {
       postParams.title = matterData.wp_title;
     }
-    if (matterData.wp_postId) {
-      postParams.postId = matterData.wp_postId;
+    if (matterData.wp_pid) {
+      postParams.postId = matterData.wp_pid;
     }
-    postParams.profileName = matterData.wp_profileName ?? WP_DEFAULT_PROFILE_NAME;
-    if (matterData.wp_postType) {
-      postParams.postType = matterData.wp_postType;
+    postParams.profileName = matterData.wp_profile ?? WP_DEFAULT_PROFILE_NAME;
+    if (matterData.wp_ptype) {
+      postParams.postType = matterData.wp_ptype;
     } else {
       // if there is no post type in matter-data, assign it as 'post'
       postParams.postType = PostTypeConst.Post;
