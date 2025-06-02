@@ -65123,14 +65123,14 @@ var DEFAULT_SETTINGS = {
   lang: "auto",
   profiles: [],
   showRibbonIcon: false,
-  defaultPostStatus: "draft" /* Draft */,
+  defaultPostStatus: "publish" /* Publish */,
   defaultCommentStatus: "open" /* Open */,
   rememberLastSelectedCategories: true,
   showWordPressEditConfirm: false,
   mathJaxOutputType: "svg" /* SVG */,
   commentConvertMode: "ignore" /* Ignore */,
   enableHtml: false,
-  replaceMediaLinks: true
+  replaceMediaLinks: false
 };
 async function upgradeSettings(existingSettings, to) {
   console.log(existingSettings, to);

@@ -80,14 +80,14 @@ export const DEFAULT_SETTINGS: WordpressPluginSettings = {
   lang: 'auto',
   profiles: [],
   showRibbonIcon: false,
-  defaultPostStatus: PostStatus.Draft,
+  defaultPostStatus: PostStatus.Publish,
   defaultCommentStatus: CommentStatus.Open,
   rememberLastSelectedCategories: true,
   showWordPressEditConfirm: false,
   mathJaxOutputType: MathJaxOutputType.SVG,
   commentConvertMode: CommentConvertMode.Ignore,
   enableHtml: false,
-  replaceMediaLinks: true,
+  replaceMediaLinks: false,
 }
 
 export async function upgradeSettings(
