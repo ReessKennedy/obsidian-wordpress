@@ -175,15 +175,22 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     try {
       const allCategories = await this.getCategories(auth);
       const categoryIds: number[] = [];
+      const missingCategories: string[] = [];
       
       for (const name of categoryNames) {
         const category = allCategories.find(cat => cat.name.toLowerCase() === name.toLowerCase());
         if (category) {
           categoryIds.push(parseInt(category.id, 10));
         } else {
+          missingCategories.push(name);
           console.warn(`Category not found: ${name}. Using default category (ID: 1).`);
           categoryIds.push(1); // Default to "Uncategorized" category
         }
+      }
+      
+      // Show a notice if categories were missing
+      if (missingCategories.length > 0) {
+        new Notice(`Categories not found: ${missingCategories.join(', ')}. Using "Uncategorized" instead.`);
       }
       
       // Remove duplicates
@@ -682,12 +689,14 @@ export abstract class AbstractWordPressClient implements WordPressClient {
             async (postParams: WordPressPostParams, updateMatterData: (matter: MatterData) => void) => {
               postParams = await this.readFromFrontMatter(title, matterData, postParams);
               postParams.content = content;
+              // For modal case, preserve the original tags from frontmatter since modal doesn't handle tags
+              const originalTagsForModal = (matterData.wp_tags as string[]) ?? [];
               try {
                 const r = await this.tryToPublish({
                   auth,
                   postParams,
                   updateMatterData,
-                  originalTagNames: (matterData.wp_tags as string[]) ?? []
+                  originalTagNames: originalTagsForModal
                 });
                 if (r.code === WordPressClientReturnCode.OK) {
                   publishModal.close();

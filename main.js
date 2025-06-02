@@ -77722,14 +77722,19 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
     try {
       const allCategories = await this.getCategories(auth);
       const categoryIds = [];
+      const missingCategories = [];
       for (const name of categoryNames) {
         const category = allCategories.find((cat) => cat.name.toLowerCase() === name.toLowerCase());
         if (category) {
           categoryIds.push(parseInt(category.id, 10));
         } else {
+          missingCategories.push(name);
           console.warn(`Category not found: ${name}. Using default category (ID: 1).`);
           categoryIds.push(1);
         }
+      }
+      if (missingCategories.length > 0) {
+        new import_obsidian8.Notice(`Categories not found: ${missingCategories.join(", ")}. Using "Uncategorized" instead.`);
       }
       const uniqueIds = [...new Set(categoryIds)];
       return uniqueIds.length > 0 ? uniqueIds : [1];
@@ -78110,12 +78115,13 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
               var _a3;
               postParams2 = await this.readFromFrontMatter(title, matterData, postParams2);
               postParams2.content = content;
+              const originalTagsForModal = (_a3 = matterData.wp_tags) != null ? _a3 : [];
               try {
                 const r = await this.tryToPublish({
                   auth,
                   postParams: postParams2,
                   updateMatterData,
-                  originalTagNames: (_a3 = matterData.wp_tags) != null ? _a3 : []
+                  originalTagNames: originalTagsForModal
                 });
                 if (r.code === 0 /* OK */) {
                   publishModal.close();
