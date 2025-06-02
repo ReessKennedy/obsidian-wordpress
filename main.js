@@ -77782,27 +77782,35 @@ var AbstractWordPressClient = class {
             wp_title: fm.wp_title
           };
           fm.wp_profile = this.profile.name;
-          if (result.data.postUrl && result.data.postUrl !== preserved.wp_url) {
-            fm.wp_url = result.data.postUrl;
-            console.log("DEBUG: Using new postUrl from response:", result.data.postUrl);
-          } else if (preserved.wp_url) {
+          if (preserved.wp_url) {
             fm.wp_url = preserved.wp_url;
-            console.log("DEBUG: Keeping existing URL:", preserved.wp_url);
+            console.log("DEBUG: Keeping existing URL (never change for updates):", preserved.wp_url);
+          } else if (result.data.postUrl) {
+            fm.wp_url = result.data.postUrl;
+            console.log("DEBUG: Using postUrl for new post:", result.data.postUrl);
           } else if (postId) {
             fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
             console.log("DEBUG: Creating fallback URL for new post:", fm.wp_url);
           }
           if (preserved.wp_ptype !== void 0) {
             fm.wp_ptype = preserved.wp_ptype;
+          } else if (postParams.postType) {
+            fm.wp_ptype = postParams.postType;
           }
           if (preserved.wp_categories !== void 0) {
             fm.wp_categories = preserved.wp_categories;
+          } else if (postParams.categories && postParams.categories.length > 0) {
+            fm.wp_categories = postParams.categories;
           }
           if (preserved.wp_tags !== void 0) {
             fm.wp_tags = preserved.wp_tags;
+          } else if (postParams.tags && postParams.tags.length >= 0) {
+            fm.wp_tags = postParams.tags;
           }
           if (preserved.wp_title !== void 0) {
             fm.wp_title = preserved.wp_title;
+          } else if (postParams.title && postParams.title !== file.basename) {
+            fm.wp_title = postParams.title;
           }
           console.log("DEBUG: Preserved values =", JSON.stringify(preserved));
           console.log("DEBUG: Final frontmatter =", JSON.stringify(fm));

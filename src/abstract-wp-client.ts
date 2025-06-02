@@ -245,17 +245,17 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           // Only update fields that should actually change
           fm.wp_profile = this.profile.name;
           
-          // URL preservation logic - NEVER change existing URLs unless we have explicit new postUrl
-          if (result.data.postUrl && result.data.postUrl !== preserved.wp_url) {
-            // WordPress gave us a new/different URL, use it
-            fm.wp_url = result.data.postUrl;
-            console.log('DEBUG: Using new postUrl from response:', result.data.postUrl);
-          } else if (preserved.wp_url) {
-            // Keep existing URL exactly as is
+          // URL preservation logic - NEVER change existing URLs for updates
+          if (preserved.wp_url) {
+            // Always keep existing URL for updates - it's already valid
             fm.wp_url = preserved.wp_url;
-            console.log('DEBUG: Keeping existing URL:', preserved.wp_url);
+            console.log('DEBUG: Keeping existing URL (never change for updates):', preserved.wp_url);
+          } else if (result.data.postUrl) {
+            // Only use response URL for completely new posts
+            fm.wp_url = result.data.postUrl;
+            console.log('DEBUG: Using postUrl for new post:', result.data.postUrl);
           } else if (postId) {
-            // Only create fallback URL if we have no existing URL at all
+            // Fallback for new posts if no postUrl provided
             fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
             console.log('DEBUG: Creating fallback URL for new post:', fm.wp_url);
           }
@@ -263,15 +263,26 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           // Preserve other fields - never delete them
           if (preserved.wp_ptype !== undefined) {
             fm.wp_ptype = preserved.wp_ptype;
+          } else if (postParams.postType) {
+            fm.wp_ptype = postParams.postType; // Set for new posts
           }
+          
           if (preserved.wp_categories !== undefined) {
             fm.wp_categories = preserved.wp_categories;
+          } else if (postParams.categories && postParams.categories.length > 0) {
+            fm.wp_categories = postParams.categories; // Set for new posts
           }
+          
           if (preserved.wp_tags !== undefined) {
             fm.wp_tags = preserved.wp_tags;
+          } else if (postParams.tags && postParams.tags.length >= 0) {
+            fm.wp_tags = postParams.tags; // Set for new posts (including empty array)
           }
+          
           if (preserved.wp_title !== undefined) {
             fm.wp_title = preserved.wp_title;
+          } else if (postParams.title && postParams.title !== file.basename) {
+            fm.wp_title = postParams.title; // Set for new posts with custom title
           }
           
           console.log('DEBUG: Preserved values =', JSON.stringify(preserved));
