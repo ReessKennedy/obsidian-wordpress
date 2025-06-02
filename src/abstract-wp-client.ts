@@ -186,7 +186,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         }
       }
       
-      return categoryIds.length > 0 ? categoryIds : [1];
+      // Remove duplicates
+      const uniqueIds = [...new Set(categoryIds)];
+      return uniqueIds.length > 0 ? uniqueIds : [1];
     } catch (error) {
       console.error('Error converting category names to IDs:', error);
       return [1]; // Default to "Uncategorized" category
@@ -254,6 +256,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     const { postParams, auth, updateMatterData } = params;
     
     console.log('DEBUG: tryToPublish called with postParams:', JSON.stringify(postParams));
+    
+    // Preserve original tag names for frontmatter storage
+    const originalTagNames = [...(postParams.tags as string[])];
     
     const tagTerms = await this.getTags(postParams.tags, auth);
     postParams.tags = tagTerms.map(term => term.id);
