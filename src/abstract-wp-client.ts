@@ -401,6 +401,22 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       
       console.log('DEBUG: Initial matterData after processFile =', JSON.stringify(matterData));
       
+      // Safety check: If this file previously had WordPress frontmatter but now doesn't,
+      // something went wrong - don't create a new post accidentally
+      const fileContent = await this.plugin.app.vault.read(file);
+      const hasWpFrontmatterText = fileContent.includes('wp_url:') || fileContent.includes('wp_profile:') || 
+                                   fileContent.includes('wp_ptype:') || fileContent.includes('wp_categories:');
+      const hasWpFrontmatterParsed = Object.keys(matterData).some(key => key.startsWith('wp_'));
+      
+      console.log('DEBUG: hasWpFrontmatterText =', hasWpFrontmatterText, 'hasWpFrontmatterParsed =', hasWpFrontmatterParsed);
+      
+      if (hasWpFrontmatterText && !hasWpFrontmatterParsed) {
+        console.log('ERROR: WordPress frontmatter found in file text but not parsed!');
+        console.log('Raw file content (first 500 chars):', fileContent.substring(0, 500));
+        console.log('Parsed matterData:', JSON.stringify(matterData));
+        throw new Error('WordPress frontmatter parsing failed. Please check the YAML syntax in your frontmatter and try again.');
+      }
+      
       // check if profile selected is matched to the one in note property,
       // if not, ask whether to update or not
       await this.checkExistingProfile(matterData);
