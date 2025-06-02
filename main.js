@@ -77673,22 +77673,30 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
    */
   async extractPostIdFromUrl(url) {
     try {
+      console.log("DEBUG: extractPostIdFromUrl called with:", url);
       const urlObj = new URL(url);
       const postIdParam = urlObj.searchParams.get("p");
       if (postIdParam) {
+        console.log("DEBUG: Found p parameter:", postIdParam);
         return parseInt(postIdParam, 10);
       }
       const pathname = urlObj.pathname;
       const segments = pathname.split("/").filter((segment) => segment.length > 0);
+      console.log("DEBUG: URL segments:", segments);
       if (segments.length === 0) {
+        console.log("DEBUG: No segments found in URL");
         return null;
       }
       let slug = segments[segments.length - 1];
       slug = slug.replace(/\.(html|php|htm)$/i, "");
+      console.log("DEBUG: Extracted slug:", slug);
       if (slug.length === 0) {
+        console.log("DEBUG: Empty slug after processing");
         return null;
       }
-      return await this.getPostIdBySlug(slug);
+      const postId = await this.getPostIdBySlug(slug);
+      console.log("DEBUG: getPostIdBySlug returned:", postId);
+      return postId;
     } catch (error2) {
       console.error("Error parsing WordPress URL:", error2);
       return null;
@@ -77699,10 +77707,15 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
    */
   async getPostIdBySlug(slug) {
     try {
+      console.log("DEBUG: getPostIdBySlug called with:", slug);
       const response = await this.getPostsBySlug(slug);
+      console.log("DEBUG: getPostsBySlug response:", response);
       if (response && response.length > 0) {
-        return parseInt(response[0].id, 10);
+        const postId = parseInt(response[0].id, 10);
+        console.log("DEBUG: Found post ID:", postId);
+        return postId;
       }
+      console.log("DEBUG: No posts found for slug:", slug);
       return null;
     } catch (error2) {
       console.error("Error getting post ID by slug:", error2);
@@ -78581,9 +78594,15 @@ var WpRestClient = class extends AbstractWordPressClient {
   // Implementation of getPostsBySlug for URL to ID conversion
   async getPostsBySlug(slug) {
     try {
+      console.log("DEBUG: WpRestClient getPostsBySlug called with:", slug);
+      const auth = await this.getAuth();
       const response = await this.client.httpGet(
-        `wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}`
+        `wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}`,
+        {
+          headers: this.context.getHeaders(auth)
+        }
       );
+      console.log("DEBUG: WpRestClient getPostsBySlug response:", response);
       return Array.isArray(response) ? response : [];
     } catch (error2) {
       console.error("Error fetching posts by slug:", error2);

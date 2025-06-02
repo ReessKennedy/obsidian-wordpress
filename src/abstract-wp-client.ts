@@ -70,7 +70,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     return true;
   }
 
-  private async getAuth(): Promise<WordPressAuthParams> {
+  protected async getAuth(): Promise<WordPressAuthParams> {
     let auth: WordPressAuthParams = {
       username: null,
       password: null
@@ -109,19 +109,23 @@ export abstract class AbstractWordPressClient implements WordPressClient {
    */
   private async extractPostIdFromUrl(url: string): Promise<number | null> {
     try {
+      console.log('DEBUG: extractPostIdFromUrl called with:', url);
       const urlObj = new URL(url);
       
       // Check for ?p=ID parameter (direct post ID)
       const postIdParam = urlObj.searchParams.get('p');
       if (postIdParam) {
+        console.log('DEBUG: Found p parameter:', postIdParam);
         return parseInt(postIdParam, 10);
       }
       
       // Extract slug from URL path
       const pathname = urlObj.pathname;
       const segments = pathname.split('/').filter(segment => segment.length > 0);
+      console.log('DEBUG: URL segments:', segments);
       
       if (segments.length === 0) {
+        console.log('DEBUG: No segments found in URL');
         return null;
       }
       
@@ -129,13 +133,17 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       // Remove file extensions if present (e.g., .html, .php)
       let slug = segments[segments.length - 1];
       slug = slug.replace(/\.(html|php|htm)$/i, '');
+      console.log('DEBUG: Extracted slug:', slug);
       
       if (slug.length === 0) {
+        console.log('DEBUG: Empty slug after processing');
         return null;
       }
       
       // Look up post ID by slug using WordPress API
-      return await this.getPostIdBySlug(slug);
+      const postId = await this.getPostIdBySlug(slug);
+      console.log('DEBUG: getPostIdBySlug returned:', postId);
+      return postId;
     } catch (error) {
       console.error('Error parsing WordPress URL:', error);
       return null;
@@ -147,11 +155,16 @@ export abstract class AbstractWordPressClient implements WordPressClient {
    */
   private async getPostIdBySlug(slug: string): Promise<number | null> {
     try {
+      console.log('DEBUG: getPostIdBySlug called with:', slug);
       // Use WordPress REST API to find post by slug
       const response = await this.getPostsBySlug(slug);
+      console.log('DEBUG: getPostsBySlug response:', response);
       if (response && response.length > 0) {
-        return parseInt(response[0].id, 10);
+        const postId = parseInt(response[0].id, 10);
+        console.log('DEBUG: Found post ID:', postId);
+        return postId;
       }
+      console.log('DEBUG: No posts found for slug:', slug);
       return null;
     } catch (error) {
       console.error('Error getting post ID by slug:', error);
