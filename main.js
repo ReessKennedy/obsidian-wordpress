@@ -77731,7 +77731,8 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
           categoryIds.push(1);
         }
       }
-      return categoryIds.length > 0 ? categoryIds : [1];
+      const uniqueIds = [...new Set(categoryIds)];
+      return uniqueIds.length > 0 ? uniqueIds : [1];
     } catch (error2) {
       console.error("Error converting category names to IDs:", error2);
       return [1];
@@ -77787,7 +77788,7 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
   }
   async tryToPublish(params) {
     var _a2, _b, _c;
-    const { postParams, auth, updateMatterData } = params;
+    const { postParams, auth, updateMatterData, originalTagNames } = params;
     console.log("DEBUG: tryToPublish called with postParams:", JSON.stringify(postParams));
     const tagTerms = await this.getTags(postParams.tags, auth);
     postParams.tags = tagTerms.map((term) => term.id);
@@ -77886,7 +77887,9 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
           } else if (preserved.wp_categories !== void 0) {
             fm.wp_categories = preserved.wp_categories;
           }
-          if (postParams.tags !== void 0 && postParams.tags.length >= 0) {
+          if (originalTagNames !== void 0 && originalTagNames.length >= 0) {
+            fm.wp_tags = originalTagNames;
+          } else if (postParams.tags !== void 0 && postParams.tags.length >= 0) {
             fm.wp_tags = postParams.tags;
           } else if (preserved.wp_tags !== void 0) {
             fm.wp_tags = preserved.wp_tags;
@@ -78000,7 +78003,7 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
     }
   }
   async publishPost(defaultPostParams) {
-    var _a2, _b, _c;
+    var _a2, _b, _c, _d;
     try {
       if (_AbstractWordPressClient.publishInProgress) {
         console.log("DEBUG: Publish already in progress, preventing race condition");
@@ -78074,7 +78077,8 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
         postParams.content = content;
         result = await this.tryToPublish({
           auth,
-          postParams
+          postParams,
+          originalTagNames: (_c = matterData.wp_tags) != null ? _c : []
         });
       } else {
         const categories = await this.getCategories(auth);
@@ -78096,20 +78100,22 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
         if (postTypes.length === 0) {
           postTypes.push("post" /* Post */);
         }
-        const selectedPostType = (_c = matterData.wp_ptype) != null ? _c : "post" /* Post */;
+        const selectedPostType = (_d = matterData.wp_ptype) != null ? _d : "post" /* Post */;
         result = await new Promise((resolve) => {
           const publishModal = new WpPublishModal(
             this.plugin,
             { items: categories, selected: selectedCategories },
             { items: postTypes, selected: selectedPostType },
             async (postParams2, updateMatterData) => {
+              var _a3;
               postParams2 = await this.readFromFrontMatter(title, matterData, postParams2);
               postParams2.content = content;
               try {
                 const r = await this.tryToPublish({
                   auth,
                   postParams: postParams2,
-                  updateMatterData
+                  updateMatterData,
+                  originalTagNames: (_a3 = matterData.wp_tags) != null ? _a3 : []
                 });
                 if (r.code === 0 /* OK */) {
                   publishModal.close();

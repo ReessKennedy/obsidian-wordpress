@@ -252,13 +252,11 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     postParams: WordPressPostParams,
     auth: WordPressAuthParams,
     updateMatterData?: (matter: MatterData) => void,
+    originalTagNames?: string[],
   }): Promise<WordPressClientResult<WordPressPublishResult>> {
-    const { postParams, auth, updateMatterData } = params;
+    const { postParams, auth, updateMatterData, originalTagNames } = params;
     
     console.log('DEBUG: tryToPublish called with postParams:', JSON.stringify(postParams));
-    
-    // Preserve original tag names for frontmatter storage
-    const originalTagNames = [...(postParams.tags as string[])];
     
     const tagTerms = await this.getTags(postParams.tags, auth);
     postParams.tags = tagTerms.map(term => term.id);
@@ -394,7 +392,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           }
           
           // Tags: Always use current tags from postParams for updates
-          if (postParams.tags !== undefined && postParams.tags.length >= 0) {
+          if (originalTagNames !== undefined && originalTagNames.length >= 0) {
+            fm.wp_tags = originalTagNames; // Use original tag names (including empty array for clearing)
+          } else if (postParams.tags !== undefined && postParams.tags.length >= 0) {
             fm.wp_tags = postParams.tags; // Use current tags (including empty array for clearing)
           } else if (preserved.wp_tags !== undefined) {
             fm.wp_tags = preserved.wp_tags; // Only preserve if no new tags specified
@@ -641,7 +641,8 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         postParams.content = content;
         result = await this.tryToPublish({
           auth,
-          postParams
+          postParams,
+          originalTagNames: (matterData.wp_tags as string[]) ?? []
         });
       } else {
         const categories = await this.getCategories(auth);
@@ -685,7 +686,8 @@ export abstract class AbstractWordPressClient implements WordPressClient {
                 const r = await this.tryToPublish({
                   auth,
                   postParams,
-                  updateMatterData
+                  updateMatterData,
+                  originalTagNames: (matterData.wp_tags as string[]) ?? []
                 });
                 if (r.code === WordPressClientReturnCode.OK) {
                   publishModal.close();
