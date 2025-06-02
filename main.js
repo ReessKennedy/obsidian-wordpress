@@ -77715,8 +77715,50 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
   async getPostsBySlug(slug) {
     return [];
   }
+  /**
+   * Convert category names to IDs for API calls
+   */
+  async convertCategoryNamesToIds(categoryNames, auth) {
+    try {
+      const allCategories = await this.getCategories(auth);
+      const categoryIds = [];
+      for (const name of categoryNames) {
+        const category = allCategories.find((cat) => cat.name.toLowerCase() === name.toLowerCase());
+        if (category) {
+          categoryIds.push(parseInt(category.id, 10));
+        } else {
+          console.warn(`Category not found: ${name}. Using default category (ID: 1).`);
+          categoryIds.push(1);
+        }
+      }
+      return categoryIds.length > 0 ? categoryIds : [1];
+    } catch (error2) {
+      console.error("Error converting category names to IDs:", error2);
+      return [1];
+    }
+  }
+  /**
+   * Convert category IDs to names for frontmatter storage
+   */
+  async convertCategoryIdsToNames(categoryIds, auth) {
+    try {
+      const allCategories = await this.getCategories(auth);
+      const categoryNames = [];
+      for (const id of categoryIds) {
+        const category = allCategories.find((cat) => parseInt(cat.id, 10) === id);
+        if (category) {
+          categoryNames.push(category.name);
+        } else {
+          console.warn(`Category ID not found: ${id}. Skipping.`);
+        }
+      }
+      return categoryNames.length > 0 ? categoryNames : ["Uncategorized"];
+    } catch (error2) {
+      console.error("Error converting category IDs to names:", error2);
+      return ["Uncategorized"];
+    }
+  }
   async checkExistingProfile(matterData) {
-    var _a2;
     const { wp_profile } = matterData;
     const isProfileNameMismatch = wp_profile && wp_profile !== this.profile.name;
     console.log("DEBUG: checkExistingProfile - wp_profile =", wp_profile, "current profile =", this.profile.name, "mismatch =", isProfileNameMismatch);
@@ -77735,7 +77777,11 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
       if (confirm.code !== 0 /* Cancel */) {
         console.log("DEBUG: CLEARING wp_url due to profile change!");
         delete matterData.wp_url;
-        matterData.wp_categories = (_a2 = this.profile.lastSelectedCategories) != null ? _a2 : [1];
+        if (this.profile.lastSelectedCategories && this.profile.lastSelectedCategories.length > 0) {
+          matterData.wp_categories = this.profile.lastSelectedCategories;
+        } else {
+          matterData.wp_categories = [1];
+        }
       }
     }
   }
@@ -77780,7 +77826,7 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
         console.log("DEBUG: postParams =", JSON.stringify(postParams));
         const currentContent = await this.plugin.app.vault.read(file);
         console.log("DEBUG: Full file content before processing:", currentContent.substring(0, 500));
-        await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+        await this.plugin.app.fileManager.processFrontMatter(file, async (fm) => {
           console.log("DEBUG: Original frontmatter =", JSON.stringify(fm));
           const preserved = {
             wp_url: fm.wp_url,
@@ -77807,9 +77853,30 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
             fm.wp_ptype = postParams.postType;
           }
           if (preserved.wp_categories !== void 0) {
-            fm.wp_categories = preserved.wp_categories;
+            const existingCategories = preserved.wp_categories;
+            if (Array.isArray(existingCategories) && existingCategories.length > 0) {
+              if (typeof existingCategories[0] === "string") {
+                fm.wp_categories = preserved.wp_categories;
+              } else {
+                try {
+                  const auth2 = await this.getAuth();
+                  fm.wp_categories = await this.convertCategoryIdsToNames(existingCategories, auth2);
+                } catch (error2) {
+                  console.warn("Could not convert existing category IDs to names:", error2);
+                  fm.wp_categories = preserved.wp_categories;
+                }
+              }
+            } else {
+              fm.wp_categories = preserved.wp_categories;
+            }
           } else if (postParams.categories && postParams.categories.length > 0) {
-            fm.wp_categories = postParams.categories;
+            try {
+              const auth2 = await this.getAuth();
+              fm.wp_categories = await this.convertCategoryIdsToNames(postParams.categories, auth2);
+            } catch (error2) {
+              console.warn("Could not convert category IDs to names for new post:", error2);
+              fm.wp_categories = postParams.categories;
+            }
           }
           if (preserved.wp_tags !== void 0) {
             fm.wp_tags = preserved.wp_tags;
@@ -77846,7 +77913,14 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
       }
       if (postId) {
         if (this.plugin.settings.rememberLastSelectedCategories) {
-          this.profile.lastSelectedCategories = result.data.categories;
+          try {
+            const auth2 = await this.getAuth();
+            const categoryIds = result.data.categories;
+            this.profile.lastSelectedCategories = await this.convertCategoryIdsToNames(categoryIds, auth2);
+          } catch (error2) {
+            console.warn("Could not convert category IDs to names for saving:", error2);
+            this.profile.lastSelectedCategories = result.data.categories;
+          }
           await this.plugin.saveSettings();
         }
         if (this.plugin.settings.showWordPressEditConfirm) {
@@ -77918,7 +77992,7 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
     }
   }
   async publishPost(defaultPostParams) {
-    var _a2, _b, _c, _d, _e, _f, _g;
+    var _a2, _b, _c;
     try {
       if (_AbstractWordPressClient.publishInProgress) {
         console.log("DEBUG: Publish already in progress, preventing race condition");
@@ -77965,12 +78039,26 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
       let result;
       const hasExistingPost = matterData.wp_url && matterData.wp_url.length > 0;
       if (defaultPostParams || hasExistingPost) {
+        let categoriesForAPI = [1];
+        if (matterData.wp_categories && Array.isArray(matterData.wp_categories) && matterData.wp_categories.length > 0) {
+          if (typeof matterData.wp_categories[0] === "string") {
+            categoriesForAPI = await this.convertCategoryNamesToIds(matterData.wp_categories, auth);
+          } else {
+            categoriesForAPI = matterData.wp_categories;
+          }
+        } else if (this.profile.lastSelectedCategories && this.profile.lastSelectedCategories.length > 0) {
+          if (typeof this.profile.lastSelectedCategories[0] === "string") {
+            categoriesForAPI = await this.convertCategoryNamesToIds(this.profile.lastSelectedCategories, auth);
+          } else {
+            categoriesForAPI = this.profile.lastSelectedCategories;
+          }
+        }
         const baseParams = defaultPostParams || {
           status: this.plugin.settings.defaultPostStatus,
           commentStatus: this.plugin.settings.defaultCommentStatus,
           postType: (_a2 = matterData.wp_ptype) != null ? _a2 : "post" /* Post */,
-          categories: (_c = (_b = matterData.wp_categories) != null ? _b : this.profile.lastSelectedCategories) != null ? _c : [1],
-          tags: (_d = matterData.wp_tags) != null ? _d : [],
+          categories: categoriesForAPI,
+          tags: (_b = matterData.wp_tags) != null ? _b : [],
           title: "",
           content: ""
         };
@@ -77982,12 +78070,25 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
         });
       } else {
         const categories = await this.getCategories(auth);
-        const selectedCategories = (_f = (_e = matterData.wp_categories) != null ? _e : this.profile.lastSelectedCategories) != null ? _f : [1];
+        let selectedCategories = [1];
+        if (matterData.wp_categories && Array.isArray(matterData.wp_categories) && matterData.wp_categories.length > 0) {
+          if (typeof matterData.wp_categories[0] === "string") {
+            selectedCategories = await this.convertCategoryNamesToIds(matterData.wp_categories, auth);
+          } else {
+            selectedCategories = matterData.wp_categories;
+          }
+        } else if (this.profile.lastSelectedCategories && this.profile.lastSelectedCategories.length > 0) {
+          if (typeof this.profile.lastSelectedCategories[0] === "string") {
+            selectedCategories = await this.convertCategoryNamesToIds(this.profile.lastSelectedCategories, auth);
+          } else {
+            selectedCategories = this.profile.lastSelectedCategories;
+          }
+        }
         const postTypes = await this.getPostTypes(auth);
         if (postTypes.length === 0) {
           postTypes.push("post" /* Post */);
         }
-        const selectedPostType = (_g = matterData.wp_ptype) != null ? _g : "post" /* Post */;
+        const selectedPostType = (_c = matterData.wp_ptype) != null ? _c : "post" /* Post */;
         result = await new Promise((resolve) => {
           const publishModal = new WpPublishModal(
             this.plugin,
@@ -78052,7 +78153,7 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
     return terms;
   }
   async readFromFrontMatter(noteTitle, matterData, params) {
-    var _a2, _b;
+    var _a2;
     const postParams = { ...params };
     postParams.title = noteTitle;
     if (matterData.wp_title) {
@@ -78072,7 +78173,26 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
     }
     if (postParams.postType === "post" /* Post */) {
       if (matterData.wp_categories !== void 0) {
-        postParams.categories = (_b = matterData.wp_categories) != null ? _b : this.profile.lastSelectedCategories;
+        const wpCategories = matterData.wp_categories;
+        if (Array.isArray(wpCategories) && wpCategories.length > 0) {
+          if (typeof wpCategories[0] === "string") {
+            const auth = await this.getAuth();
+            postParams.categories = await this.convertCategoryNamesToIds(wpCategories, auth);
+          } else {
+            postParams.categories = wpCategories;
+          }
+        } else {
+          if (this.profile.lastSelectedCategories && this.profile.lastSelectedCategories.length > 0) {
+            if (typeof this.profile.lastSelectedCategories[0] === "string") {
+              const auth = await this.getAuth();
+              postParams.categories = await this.convertCategoryNamesToIds(this.profile.lastSelectedCategories, auth);
+            } else {
+              postParams.categories = this.profile.lastSelectedCategories;
+            }
+          } else {
+            postParams.categories = [1];
+          }
+        }
       }
       if (matterData.wp_tags !== void 0) {
         postParams.tags = matterData.wp_tags;
@@ -80325,13 +80445,21 @@ var WordpressPlugin = class extends import_obsidian17.Plugin {
       id: "defaultPublish",
       name: __privateGet(this, _i18n).t("command_publishWithDefault"),
       editorCallback: () => {
-        var _a3, _b, _c, _d, _e, _f, _g, _h;
+        var _a3, _b, _c, _d, _e, _f, _g;
         const defaultProfile = (_a3 = __privateGet(this, _settings)) == null ? void 0 : _a3.profiles.find((it) => it.isDefault);
         if (defaultProfile) {
+          let categories = [1];
+          if (defaultProfile.lastSelectedCategories && defaultProfile.lastSelectedCategories.length > 0) {
+            if (typeof defaultProfile.lastSelectedCategories[0] === "number") {
+              categories = defaultProfile.lastSelectedCategories;
+            } else {
+              categories = [1];
+            }
+          }
           const params = {
             status: (_c = (_b = __privateGet(this, _settings)) == null ? void 0 : _b.defaultPostStatus) != null ? _c : "draft" /* Draft */,
             commentStatus: (_e = (_d = __privateGet(this, _settings)) == null ? void 0 : _d.defaultCommentStatus) != null ? _e : "open" /* Open */,
-            categories: (_f = defaultProfile.lastSelectedCategories) != null ? _f : [1],
+            categories,
             postType: "post" /* Post */,
             tags: [],
             title: "",
@@ -80339,7 +80467,7 @@ var WordpressPlugin = class extends import_obsidian17.Plugin {
           };
           doClientPublish(this, defaultProfile, params);
         } else {
-          showError((_h = (_g = __privateGet(this, _i18n)) == null ? void 0 : _g.t("error_noDefaultProfile")) != null ? _h : "No default profile found.");
+          showError((_g = (_f = __privateGet(this, _i18n)) == null ? void 0 : _f.t("error_noDefaultProfile")) != null ? _g : "No default profile found.");
         }
       }
     });
