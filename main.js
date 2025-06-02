@@ -77624,7 +77624,7 @@ var WpLoginModal = class extends AbstractModal {
 };
 
 // src/abstract-wp-client.ts
-var AbstractWordPressClient = class {
+var _AbstractWordPressClient = class _AbstractWordPressClient {
   constructor(plugin4, profile) {
     this.plugin = plugin4;
     this.profile = profile;
@@ -77920,6 +77920,12 @@ var AbstractWordPressClient = class {
   async publishPost(defaultPostParams) {
     var _a2, _b, _c, _d, _e, _f, _g;
     try {
+      if (_AbstractWordPressClient.publishInProgress) {
+        console.log("DEBUG: Publish already in progress, preventing race condition");
+        throw new Error("A publish operation is already in progress. Please wait for it to complete.");
+      }
+      _AbstractWordPressClient.publishInProgress = true;
+      console.log("DEBUG: Publish lock acquired");
       if (!this.profile.endpoint || this.profile.endpoint.length === 0) {
         throw new Error(this.plugin.i18n.t("error_noEndpoint"));
       }
@@ -77940,6 +77946,18 @@ var AbstractWordPressClient = class {
         console.log("Raw file content (first 500 chars):", fileContent.substring(0, 500));
         console.log("Parsed matterData:", JSON.stringify(matterData));
         throw new Error("WordPress frontmatter parsing failed. Please check the YAML syntax in your frontmatter and try again.");
+      }
+      if (!hasWpFrontmatterParsed && file.stat.size > 0) {
+        console.log("DEBUG: No frontmatter parsed, waiting 100ms and re-reading file...");
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const { matter: retryMatterData } = await processFile(file, this.plugin.app);
+        const hasWpFrontmatterRetry = Object.keys(retryMatterData).some((key) => key.startsWith("wp_"));
+        if (hasWpFrontmatterRetry) {
+          console.log("DEBUG: Frontmatter found on retry, using retry data");
+          Object.assign(matterData, retryMatterData);
+        } else {
+          console.log("DEBUG: Still no frontmatter on retry, proceeding as new post");
+        }
       }
       await this.checkExistingProfile(matterData);
       console.log("DEBUG: matterData after checkExistingProfile =", JSON.stringify(matterData));
@@ -78018,6 +78036,9 @@ var AbstractWordPressClient = class {
       } else {
         throw error2;
       }
+    } finally {
+      _AbstractWordPressClient.publishInProgress = false;
+      console.log("DEBUG: Publish lock released");
     }
   }
   async getTags(tags, certificate) {
@@ -78060,6 +78081,9 @@ var AbstractWordPressClient = class {
     return postParams;
   }
 };
+// Publish lock to prevent multiple simultaneous publishes
+_AbstractWordPressClient.publishInProgress = false;
+var AbstractWordPressClient = _AbstractWordPressClient;
 function getImages(content) {
   const paths = [];
   let regex = /(!\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]\((.*?)\))/g;

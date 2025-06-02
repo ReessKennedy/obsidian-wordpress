@@ -28,6 +28,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
    * Client name.
    */
   name = 'AbstractWordPressClient';
+  
+  // Publish lock to prevent multiple simultaneous publishes
+  private static publishInProgress = false;
 
   protected constructor(
     protected readonly plugin: WordpressPlugin,
@@ -413,6 +416,15 @@ export abstract class AbstractWordPressClient implements WordPressClient {
 
   async publishPost(defaultPostParams?: WordPressPostParams): Promise<WordPressClientResult<WordPressPublishResult>> {
     try {
+      // Prevent multiple simultaneous publishes
+      if (AbstractWordPressClient.publishInProgress) {
+        console.log('DEBUG: Publish already in progress, preventing race condition');
+        throw new Error('A publish operation is already in progress. Please wait for it to complete.');
+      }
+      
+      AbstractWordPressClient.publishInProgress = true;
+      console.log('DEBUG: Publish lock acquired');
+      
       if (!this.profile.endpoint || this.profile.endpoint.length === 0) {
         throw new Error(this.plugin.i18n.t('error_noEndpoint'));
       }
@@ -445,6 +457,23 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         console.log('Raw file content (first 500 chars):', fileContent.substring(0, 500));
         console.log('Parsed matterData:', JSON.stringify(matterData));
         throw new Error('WordPress frontmatter parsing failed. Please check the YAML syntax in your frontmatter and try again.');
+      }
+      
+      // Additional safety: If no frontmatter was parsed but file has content,
+      // wait a moment and re-read to handle potential race conditions
+      if (!hasWpFrontmatterParsed && file.stat.size > 0) {
+        console.log('DEBUG: No frontmatter parsed, waiting 100ms and re-reading file...');
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const { matter: retryMatterData } = await processFile(file, this.plugin.app);
+        const hasWpFrontmatterRetry = Object.keys(retryMatterData).some(key => key.startsWith('wp_'));
+        
+        if (hasWpFrontmatterRetry) {
+          console.log('DEBUG: Frontmatter found on retry, using retry data');
+          Object.assign(matterData, retryMatterData);
+        } else {
+          console.log('DEBUG: Still no frontmatter on retry, proceeding as new post');
+        }
       }
       
       // check if profile selected is matched to the one in note property,
@@ -535,6 +564,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       } else {
         throw error;
       }
+    } finally {
+      AbstractWordPressClient.publishInProgress = false;
+      console.log('DEBUG: Publish lock released');
     }
   }
 
