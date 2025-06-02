@@ -69,8 +69,8 @@ export class WpPublishModal extends AbstractModal {
       .setName(this.t('publishModal_postStatus'))
       .addDropdown((dropdown) => {
         dropdown
-          .addOption(PostStatus.Draft, this.t('publishModal_postStatusDraft'))
           .addOption(PostStatus.Publish, this.t('publishModal_postStatusPublish'))
+          .addOption(PostStatus.Draft, this.t('publishModal_postStatusDraft'))
           .addOption(PostStatus.Private, this.t('publishModal_postStatusPrivate'))
           .addOption(PostStatus.Future, this.t('publishModal_postStatusFuture'))
           .setValue(params.status)

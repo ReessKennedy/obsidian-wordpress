@@ -55,8 +55,10 @@ export class WpRestClient extends AbstractWordPressClient {
       console.log('DEBUG: WpRestClient getPostsBySlug called with:', slug);
       // Include authentication since post may be private/draft
       const auth = await this.getAuth();
+      
+      // Search for posts in all statuses (published, draft, private, etc.)
       const response = await this.client.httpGet(
-        `wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}`,
+        `wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}&status=publish,draft,private,pending,future`,
         {
           headers: this.context.getHeaders(auth)
         }

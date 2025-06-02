@@ -72331,7 +72331,7 @@ var WpPublishModal = class extends AbstractModal {
     contentEl.empty();
     this.createHeader(this.t("publishModal_title"));
     new import_obsidian4.Setting(contentEl).setName(this.t("publishModal_postStatus")).addDropdown((dropdown) => {
-      dropdown.addOption("draft" /* Draft */, this.t("publishModal_postStatusDraft")).addOption("publish" /* Publish */, this.t("publishModal_postStatusPublish")).addOption("private" /* Private */, this.t("publishModal_postStatusPrivate")).addOption("future" /* Future */, this.t("publishModal_postStatusFuture")).setValue(params.status).onChange((value) => {
+      dropdown.addOption("publish" /* Publish */, this.t("publishModal_postStatusPublish")).addOption("draft" /* Draft */, this.t("publishModal_postStatusDraft")).addOption("private" /* Private */, this.t("publishModal_postStatusPrivate")).addOption("future" /* Future */, this.t("publishModal_postStatusFuture")).setValue(params.status).onChange((value) => {
         params.status = value;
         this.display(params);
       });
@@ -78597,7 +78597,7 @@ var WpRestClient = class extends AbstractWordPressClient {
       console.log("DEBUG: WpRestClient getPostsBySlug called with:", slug);
       const auth = await this.getAuth();
       const response = await this.client.httpGet(
-        `wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}`,
+        `wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}&status=publish,draft,private,pending,future`,
         {
           headers: this.context.getHeaders(auth)
         }
