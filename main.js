@@ -77828,10 +77828,12 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
         console.log("DEBUG: Full file content before processing:", currentContent.substring(0, 500));
         let categoryNamesForNewPost;
         let categoryNamesForExisting;
+        let categoryNamesForUpdate;
         if (postParams.categories && postParams.categories.length > 0) {
           try {
             const auth2 = await this.getAuth();
             categoryNamesForNewPost = await this.convertCategoryIdsToNames(postParams.categories, auth2);
+            categoryNamesForUpdate = categoryNamesForNewPost;
           } catch (error2) {
             console.warn("Could not convert category IDs to names for new post:", error2);
           }
@@ -77873,17 +77875,21 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
           } else if (postParams.postType) {
             fm.wp_ptype = postParams.postType;
           }
-          if (preserved.wp_categories !== void 0) {
-            fm.wp_categories = categoryNamesForExisting || preserved.wp_categories;
-          } else if (categoryNamesForNewPost) {
+          if (categoryNamesForNewPost) {
             fm.wp_categories = categoryNamesForNewPost;
+          } else if (categoryNamesForExisting) {
+            fm.wp_categories = categoryNamesForExisting;
+          } else if (categoryNamesForUpdate) {
+            fm.wp_categories = categoryNamesForUpdate;
           } else if (postParams.categories && postParams.categories.length > 0) {
             fm.wp_categories = postParams.categories;
+          } else if (preserved.wp_categories !== void 0) {
+            fm.wp_categories = preserved.wp_categories;
           }
-          if (preserved.wp_tags !== void 0) {
-            fm.wp_tags = preserved.wp_tags;
-          } else if (postParams.tags && postParams.tags.length >= 0) {
+          if (postParams.tags !== void 0 && postParams.tags.length >= 0) {
             fm.wp_tags = postParams.tags;
+          } else if (preserved.wp_tags !== void 0) {
+            fm.wp_tags = preserved.wp_tags;
           }
           if (preserved.wp_title !== void 0) {
             fm.wp_title = preserved.wp_title;

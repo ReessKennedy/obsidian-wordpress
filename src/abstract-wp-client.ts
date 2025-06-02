@@ -302,12 +302,15 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         // Pre-convert category data before frontmatter processing
         let categoryNamesForNewPost: string[] | undefined;
         let categoryNamesForExisting: string[] | undefined;
+        let categoryNamesForUpdate: string[] | undefined;
         
         // Convert new post categories to names if needed
         if (postParams.categories && postParams.categories.length > 0) {
           try {
             const auth = await this.getAuth();
             categoryNamesForNewPost = await this.convertCategoryIdsToNames(postParams.categories, auth);
+            // Also use this as the update case conversion
+            categoryNamesForUpdate = categoryNamesForNewPost;
           } catch (error) {
             console.warn('Could not convert category IDs to names for new post:', error);
           }
@@ -366,21 +369,30 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           }
           
           // Categories: Save as names instead of IDs
-          if (preserved.wp_categories !== undefined) {
-            // Use converted names if available, otherwise keep as-is
-            fm.wp_categories = categoryNamesForExisting || preserved.wp_categories;
-          } else if (categoryNamesForNewPost) {
+          // For updates, we should use the current categories from postParams (which come from frontmatter)
+          // Only preserve existing categories if this is truly a preservation case (no new categories specified)
+          if (categoryNamesForNewPost) {
             // Use pre-computed category names for new posts
             fm.wp_categories = categoryNamesForNewPost;
+          } else if (categoryNamesForExisting) {
+            // Use converted names for existing posts that had ID-based categories
+            fm.wp_categories = categoryNamesForExisting;
+          } else if (categoryNamesForUpdate) {
+            // Update case: use pre-computed category names
+            fm.wp_categories = categoryNamesForUpdate;
           } else if (postParams.categories && postParams.categories.length > 0) {
             // Fallback to IDs if conversion failed
             fm.wp_categories = postParams.categories;
+          } else if (preserved.wp_categories !== undefined) {
+            // Only preserve if no new categories were specified
+            fm.wp_categories = preserved.wp_categories;
           }
           
-          if (preserved.wp_tags !== undefined) {
-            fm.wp_tags = preserved.wp_tags;
-          } else if (postParams.tags && postParams.tags.length >= 0) {
-            fm.wp_tags = postParams.tags; // Set for new posts (including empty array)
+          // Tags: Always use current tags from postParams for updates
+          if (postParams.tags !== undefined && postParams.tags.length >= 0) {
+            fm.wp_tags = postParams.tags; // Use current tags (including empty array for clearing)
+          } else if (preserved.wp_tags !== undefined) {
+            fm.wp_tags = preserved.wp_tags; // Only preserve if no new tags specified
           }
           
           if (preserved.wp_title !== undefined) {
