@@ -77823,6 +77823,17 @@ var AbstractWordPressClient = class {
         console.log("DEBUG: Frontmatter update completed");
         const updatedContent = await this.plugin.app.vault.read(file);
         console.log("DEBUG: Full file content after processing:", updatedContent.substring(0, 500));
+        setTimeout(async () => {
+          try {
+            const delayedContent = await this.plugin.app.vault.read(file);
+            console.log("DEBUG: File content after 1 second delay:", delayedContent.substring(0, 500));
+            if (!delayedContent.includes("wp_url:") && updatedContent.includes("wp_url:")) {
+              console.error("ERROR: Frontmatter was cleared AFTER our preservation logic!");
+            }
+          } catch (error2) {
+            console.log("DEBUG: Could not read file after delay:", error2);
+          }
+        }, 1e3);
       }
       if (postId) {
         if (this.plugin.settings.rememberLastSelectedCategories) {
@@ -77889,7 +77900,11 @@ var AbstractWordPressClient = class {
         }
       }
       if (this.plugin.settings.replaceMediaLinks) {
+        console.log("DEBUG: About to call activeEditor.editor.setValue - this might clear frontmatter!");
+        console.log("DEBUG: Current file content before setValue:", await this.plugin.app.vault.read(activeFile));
+        console.log("DEBUG: Content being set:", postParams.content.substring(0, 500));
         activeEditor.editor.setValue(postParams.content);
+        console.log("DEBUG: Content after setValue:", await this.plugin.app.vault.read(activeFile));
       }
     }
   }
@@ -77978,6 +77993,12 @@ var AbstractWordPressClient = class {
         });
       }
       if (result) {
+        console.log("DEBUG: publishPost about to return, checking final file state...");
+        const finalFile = this.plugin.app.workspace.getActiveFile();
+        if (finalFile) {
+          const finalContent = await this.plugin.app.vault.read(finalFile);
+          console.log("DEBUG: Final file content at end of publishPost:", finalContent.substring(0, 500));
+        }
         return result;
       } else {
         throw new Error(this.plugin.i18n.t("message_publishFailed"));
