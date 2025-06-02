@@ -77879,15 +77879,15 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
             wp_title: fm.wp_title
           };
           fm.wp_profile = this.profile.name;
-          if (preserved.wp_url) {
+          if (preserved.wp_url && postParams.postId) {
             fm.wp_url = preserved.wp_url;
-            console.log("DEBUG: Keeping existing URL (never change for updates):", preserved.wp_url);
+            console.log("DEBUG: Keeping existing URL for valid update:", preserved.wp_url);
           } else if (result.data.postUrl) {
             fm.wp_url = result.data.postUrl;
-            console.log("DEBUG: Using postUrl for new post:", result.data.postUrl);
+            console.log("DEBUG: Using postUrl (new post or URL lookup failed):", result.data.postUrl);
           } else if (postId) {
             fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
-            console.log("DEBUG: Creating fallback URL for new post:", fm.wp_url);
+            console.log("DEBUG: Creating fallback URL:", fm.wp_url);
           }
           if (preserved.wp_ptype !== void 0) {
             fm.wp_ptype = preserved.wp_ptype;

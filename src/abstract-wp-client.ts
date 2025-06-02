@@ -369,19 +369,19 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           // Only update fields that should actually change
           fm.wp_profile = this.profile.name;
           
-          // URL preservation logic - NEVER change existing URLs for updates
-          if (preserved.wp_url) {
-            // Always keep existing URL for updates - it's already valid
+          // URL preservation logic
+          if (preserved.wp_url && postParams.postId) {
+            // Keep existing URL only if we successfully found the post by URL
             fm.wp_url = preserved.wp_url;
-            console.log('DEBUG: Keeping existing URL (never change for updates):', preserved.wp_url);
+            console.log('DEBUG: Keeping existing URL for valid update:', preserved.wp_url);
           } else if (result.data.postUrl) {
-            // Only use response URL for completely new posts
+            // Use response URL for new posts or when original URL lookup failed
             fm.wp_url = result.data.postUrl;
-            console.log('DEBUG: Using postUrl for new post:', result.data.postUrl);
+            console.log('DEBUG: Using postUrl (new post or URL lookup failed):', result.data.postUrl);
           } else if (postId) {
-            // Fallback for new posts if no postUrl provided
+            // Fallback URL generation
             fm.wp_url = `${this.profile.endpoint}/?p=${postId}`;
-            console.log('DEBUG: Creating fallback URL for new post:', fm.wp_url);
+            console.log('DEBUG: Creating fallback URL:', fm.wp_url);
           }
           
           // Preserve other fields - never delete them
