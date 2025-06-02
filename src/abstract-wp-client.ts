@@ -168,6 +168,55 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     return [];
   }
 
+  /**
+   * Convert category names to IDs for API calls
+   */
+  private async convertCategoryNamesToIds(categoryNames: string[], auth: WordPressAuthParams): Promise<number[]> {
+    try {
+      const allCategories = await this.getCategories(auth);
+      const categoryIds: number[] = [];
+      
+      for (const name of categoryNames) {
+        const category = allCategories.find(cat => cat.name.toLowerCase() === name.toLowerCase());
+        if (category) {
+          categoryIds.push(parseInt(category.id, 10));
+        } else {
+          console.warn(`Category not found: ${name}. Using default category (ID: 1).`);
+          categoryIds.push(1); // Default to "Uncategorized" category
+        }
+      }
+      
+      return categoryIds.length > 0 ? categoryIds : [1];
+    } catch (error) {
+      console.error('Error converting category names to IDs:', error);
+      return [1]; // Default to "Uncategorized" category
+    }
+  }
+
+  /**
+   * Convert category IDs to names for frontmatter storage
+   */
+  private async convertCategoryIdsToNames(categoryIds: number[], auth: WordPressAuthParams): Promise<string[]> {
+    try {
+      const allCategories = await this.getCategories(auth);
+      const categoryNames: string[] = [];
+      
+      for (const id of categoryIds) {
+        const category = allCategories.find(cat => parseInt(cat.id, 10) === id);
+        if (category) {
+          categoryNames.push(category.name);
+        } else {
+          console.warn(`Category ID not found: ${id}. Skipping.`);
+        }
+      }
+      
+      return categoryNames.length > 0 ? categoryNames : ['Uncategorized'];
+    } catch (error) {
+      console.error('Error converting category IDs to names:', error);
+      return ['Uncategorized'];
+    }
+  }
+
   private async checkExistingProfile(matterData: MatterData) {
     const { wp_profile } = matterData;
     const isProfileNameMismatch = wp_profile && wp_profile !== this.profile.name;
@@ -187,7 +236,12 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       if (confirm.code !== ConfirmCode.Cancel) {
         console.log('DEBUG: CLEARING wp_url due to profile change!');
         delete matterData.wp_url;
-        matterData.wp_categories = this.profile.lastSelectedCategories ?? [ 1 ];
+        // Set wp_categories to profile default (could be names or IDs)
+        if (this.profile.lastSelectedCategories && this.profile.lastSelectedCategories.length > 0) {
+          matterData.wp_categories = this.profile.lastSelectedCategories;
+        } else {
+          matterData.wp_categories = [1]; // Default to "Uncategorized" ID
+        }
       }
     }
   }
@@ -245,7 +299,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         const currentContent = await this.plugin.app.vault.read(file);
         console.log('DEBUG: Full file content before processing:', currentContent.substring(0, 500));
         
-        await this.plugin.app.fileManager.processFrontMatter(file, fm => {
+        await this.plugin.app.fileManager.processFrontMatter(file, async fm => {
           console.log('DEBUG: Original frontmatter =', JSON.stringify(fm));
           
           // Store ALL original WordPress frontmatter to ensure preservation
@@ -283,10 +337,36 @@ export abstract class AbstractWordPressClient implements WordPressClient {
             fm.wp_ptype = postParams.postType; // Set for new posts
           }
           
+          // Categories: Save as names instead of IDs
           if (preserved.wp_categories !== undefined) {
-            fm.wp_categories = preserved.wp_categories;
+            // Check if existing categories are already names
+            const existingCategories = preserved.wp_categories;
+            if (Array.isArray(existingCategories) && existingCategories.length > 0) {
+              if (typeof existingCategories[0] === 'string') {
+                // Already stored as names, keep them
+                fm.wp_categories = preserved.wp_categories;
+              } else {
+                // Legacy format (IDs), convert to names
+                try {
+                  const auth = await this.getAuth();
+                  fm.wp_categories = await this.convertCategoryIdsToNames(existingCategories as number[], auth);
+                } catch (error) {
+                  console.warn('Could not convert existing category IDs to names:', error);
+                  fm.wp_categories = preserved.wp_categories; // Keep as-is if conversion fails
+                }
+              }
+            } else {
+              fm.wp_categories = preserved.wp_categories;
+            }
           } else if (postParams.categories && postParams.categories.length > 0) {
-            fm.wp_categories = postParams.categories; // Set for new posts
+            // Convert new category IDs to names for storage
+            try {
+              const auth = await this.getAuth();
+              fm.wp_categories = await this.convertCategoryIdsToNames(postParams.categories, auth);
+            } catch (error) {
+              console.warn('Could not convert category IDs to names for new post:', error);
+              fm.wp_categories = postParams.categories; // Fallback to IDs if conversion fails
+            }
           }
           
           if (preserved.wp_tags !== undefined) {
@@ -334,7 +414,16 @@ export abstract class AbstractWordPressClient implements WordPressClient {
 
       if (postId) {
         if (this.plugin.settings.rememberLastSelectedCategories) {
-          this.profile.lastSelectedCategories = (result.data as SafeAny).categories;
+          // Save category names instead of IDs
+          try {
+            const auth = await this.getAuth();
+            const categoryIds = (result.data as SafeAny).categories as number[];
+            this.profile.lastSelectedCategories = await this.convertCategoryIdsToNames(categoryIds, auth);
+          } catch (error) {
+            console.warn('Could not convert category IDs to names for saving:', error);
+            // Fallback to saving IDs if conversion fails
+            this.profile.lastSelectedCategories = (result.data as SafeAny).categories;
+          }
           await this.plugin.saveSettings();
         }
 
@@ -491,11 +580,33 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       
       if (defaultPostParams || hasExistingPost) {
         // Use existing parameters or create default ones for updates
+        let categoriesForAPI: number[] = [1]; // Default fallback
+        
+        // Handle categories from matterData (could be names or IDs)
+        if (matterData.wp_categories && Array.isArray(matterData.wp_categories) && matterData.wp_categories.length > 0) {
+          if (typeof matterData.wp_categories[0] === 'string') {
+            // Convert category names to IDs for API calls
+            categoriesForAPI = await this.convertCategoryNamesToIds(matterData.wp_categories as string[], auth);
+          } else {
+            // Legacy format - categories are already IDs
+            categoriesForAPI = matterData.wp_categories as number[];
+          }
+        } else if (this.profile.lastSelectedCategories && this.profile.lastSelectedCategories.length > 0) {
+          // Handle profile categories (could be names or IDs)
+          if (typeof this.profile.lastSelectedCategories[0] === 'string') {
+            // Convert profile category names to IDs
+            categoriesForAPI = await this.convertCategoryNamesToIds(this.profile.lastSelectedCategories as string[], auth);
+          } else {
+            // Profile categories are IDs
+            categoriesForAPI = this.profile.lastSelectedCategories as number[];
+          }
+        }
+        
         const baseParams = defaultPostParams || {
           status: this.plugin.settings.defaultPostStatus,
           commentStatus: this.plugin.settings.defaultCommentStatus,
           postType: matterData.wp_ptype ?? PostTypeConst.Post,
-          categories: (matterData.wp_categories as number[]) ?? this.profile.lastSelectedCategories ?? [1],
+          categories: categoriesForAPI,
           tags: (matterData.wp_tags as string[]) ?? [],
           title: '',
           content: ''
@@ -509,9 +620,29 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         });
       } else {
         const categories = await this.getCategories(auth);
-        const selectedCategories = matterData.wp_categories as number[]
-          ?? this.profile.lastSelectedCategories
-          ?? [ 1 ];
+        
+        // Handle selected categories from frontmatter (could be names or IDs)
+        let selectedCategories: number[] = [1]; // Default fallback
+        
+        if (matterData.wp_categories && Array.isArray(matterData.wp_categories) && matterData.wp_categories.length > 0) {
+          if (typeof matterData.wp_categories[0] === 'string') {
+            // Convert category names to IDs for the modal
+            selectedCategories = await this.convertCategoryNamesToIds(matterData.wp_categories as string[], auth);
+          } else {
+            // Legacy format - categories are already IDs
+            selectedCategories = matterData.wp_categories as number[];
+          }
+        } else if (this.profile.lastSelectedCategories && this.profile.lastSelectedCategories.length > 0) {
+          // Handle profile categories (could be names or IDs)
+          if (typeof this.profile.lastSelectedCategories[0] === 'string') {
+            // Convert profile category names to IDs
+            selectedCategories = await this.convertCategoryNamesToIds(this.profile.lastSelectedCategories as string[], auth);
+          } else {
+            // Profile categories are IDs
+            selectedCategories = this.profile.lastSelectedCategories as number[];
+          }
+        }
+        
         const postTypes = await this.getPostTypes(auth);
         if (postTypes.length === 0) {
           postTypes.push(PostTypeConst.Post);
@@ -609,7 +740,33 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     if (postParams.postType === PostTypeConst.Post) {
       // only 'post' supports categories and tags
       if (matterData.wp_categories !== undefined) {
-        postParams.categories = matterData.wp_categories as number[] ?? this.profile.lastSelectedCategories;
+        // Check if categories are stored as names (new format) or IDs (legacy format)
+        const wpCategories = matterData.wp_categories;
+        if (Array.isArray(wpCategories) && wpCategories.length > 0) {
+          // Check if first item is a string (name) or number (ID)
+          if (typeof wpCategories[0] === 'string') {
+            // Convert category names to IDs for API calls
+            const auth = await this.getAuth();
+            postParams.categories = await this.convertCategoryNamesToIds(wpCategories as string[], auth);
+          } else {
+            // Legacy format - categories are already IDs
+            postParams.categories = wpCategories as number[];
+          }
+        } else {
+          // Use profile default categories
+          if (this.profile.lastSelectedCategories && this.profile.lastSelectedCategories.length > 0) {
+            if (typeof this.profile.lastSelectedCategories[0] === 'string') {
+              // Convert profile category names to IDs
+              const auth = await this.getAuth();
+              postParams.categories = await this.convertCategoryNamesToIds(this.profile.lastSelectedCategories as string[], auth);
+            } else {
+              // Profile categories are IDs
+              postParams.categories = this.profile.lastSelectedCategories as number[];
+            }
+          } else {
+            postParams.categories = [1];
+          }
+        }
       }
       if (matterData.wp_tags !== undefined) {
         postParams.tags = matterData.wp_tags as string[];

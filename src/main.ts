@@ -49,10 +49,23 @@ export default class WordpressPlugin extends Plugin {
       editorCallback: () => {
         const defaultProfile = this.#settings?.profiles.find(it => it.isDefault);
         if (defaultProfile) {
+          // Handle lastSelectedCategories which could be names or IDs
+          let categories: number[] = [1]; // Default fallback
+          if (defaultProfile.lastSelectedCategories && defaultProfile.lastSelectedCategories.length > 0) {
+            if (typeof defaultProfile.lastSelectedCategories[0] === 'number') {
+              // Categories are already IDs
+              categories = defaultProfile.lastSelectedCategories as number[];
+            } else {
+              // Categories are names - for default publish, just use fallback
+              // The actual conversion will happen in the publish logic
+              categories = [1];
+            }
+          }
+          
           const params: WordPressPostParams = {
             status: this.#settings?.defaultPostStatus ?? PostStatus.Draft,
             commentStatus: this.#settings?.defaultCommentStatus ?? CommentStatus.Open,
-            categories: defaultProfile.lastSelectedCategories ?? [ 1 ],
+            categories: categories,
             postType: PostTypeConst.Post,
             tags: [],
             title: '',

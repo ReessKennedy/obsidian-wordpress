@@ -65,6 +65,7 @@ export interface WpProfile {
 
   /**
    * Last selected post categories.
+   * Can be either category IDs (legacy) or category names (new format).
    */
-  lastSelectedCategories: number[];
+  lastSelectedCategories: number[] | string[];
 }
