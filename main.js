@@ -77740,8 +77740,9 @@ var AbstractWordPressClient = class {
     }
   }
   async tryToPublish(params) {
-    var _a2;
+    var _a2, _b, _c;
     const { postParams, auth, updateMatterData } = params;
+    console.log("DEBUG: tryToPublish called with postParams:", JSON.stringify(postParams));
     const tagTerms = await this.getTags(postParams.tags, auth);
     postParams.tags = tagTerms.map((term) => term.id);
     await this.updatePostImages({
@@ -77749,8 +77750,16 @@ var AbstractWordPressClient = class {
       postParams
     });
     const html3 = AppState.markdownParser.render(postParams.content);
+    console.log("DEBUG: About to call this.publish with:");
+    console.log("DEBUG: - title:", postParams.title);
+    console.log("DEBUG: - content length:", ((_a2 = postParams.content) == null ? void 0 : _a2.length) || 0);
+    console.log("DEBUG: - content preview:", (_b = postParams.content) == null ? void 0 : _b.substring(0, 200));
+    console.log("DEBUG: - html length:", (html3 == null ? void 0 : html3.length) || 0);
+    console.log("DEBUG: - html preview:", html3 == null ? void 0 : html3.substring(0, 200));
+    console.log("DEBUG: - postParams.postId:", postParams.postId);
+    console.log("DEBUG: - this.name:", this.name);
     const result = await this.publish(
-      (_a2 = postParams.title) != null ? _a2 : "A post from Obsidian!",
+      (_c = postParams.title) != null ? _c : "A post from Obsidian!",
       html3,
       postParams,
       auth
@@ -78424,24 +78433,29 @@ var WpRestClient = class extends AbstractWordPressClient {
       url = getUrl((_a2 = this.context.endpoints) == null ? void 0 : _a2.editPost, "wp-json/wp/v2/posts/<%= postId %>", {
         postId: postParams.postId
       });
+      console.log("DEBUG: REST UPDATE - URL:", url);
     } else {
       url = getUrl((_b = this.context.endpoints) == null ? void 0 : _b.newPost, "wp-json/wp/v2/posts");
+      console.log("DEBUG: REST CREATE - URL:", url);
     }
     const extra = {};
     if (postParams.status === "future" /* Future */) {
       extra.date = formatISO((_c = postParams.datetime) != null ? _c : /* @__PURE__ */ new Date());
     }
+    const requestData = {
+      title,
+      content,
+      status: postParams.status,
+      comment_status: postParams.commentStatus,
+      categories: postParams.categories,
+      tags: (_d = postParams.tags) != null ? _d : [],
+      ...extra
+    };
+    console.log("DEBUG: REST API Request Data:", JSON.stringify(requestData));
+    console.log("DEBUG: Content being sent:", content == null ? void 0 : content.substring(0, 300));
     const resp = await this.client.httpPost(
       url,
-      {
-        title,
-        content,
-        status: postParams.status,
-        comment_status: postParams.commentStatus,
-        categories: postParams.categories,
-        tags: (_d = postParams.tags) != null ? _d : [],
-        ...extra
-      },
+      requestData,
       {
         headers: this.context.getHeaders(certificate)
       }

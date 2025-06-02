@@ -74,24 +74,32 @@ export class WpRestClient extends AbstractWordPressClient {
       url = getUrl(this.context.endpoints?.editPost, 'wp-json/wp/v2/posts/<%= postId %>', {
         postId: postParams.postId
       });
+      console.log('DEBUG: REST UPDATE - URL:', url);
     } else {
       url = getUrl(this.context.endpoints?.newPost, 'wp-json/wp/v2/posts');
+      console.log('DEBUG: REST CREATE - URL:', url);
     }
     const extra: Record<string, string> = {};
     if (postParams.status === PostStatus.Future) {
       extra.date = formatISO(postParams.datetime ?? new Date());
     }
+    
+    const requestData = {
+      title,
+      content,
+      status: postParams.status,
+      comment_status: postParams.commentStatus,
+      categories: postParams.categories,
+      tags: postParams.tags ?? [],
+      ...extra
+    };
+    
+    console.log('DEBUG: REST API Request Data:', JSON.stringify(requestData));
+    console.log('DEBUG: Content being sent:', content?.substring(0, 300));
+    
     const resp: SafeAny = await this.client.httpPost(
       url,
-      {
-        title,
-        content,
-        status: postParams.status,
-        comment_status: postParams.commentStatus,
-        categories: postParams.categories,
-        tags: postParams.tags ?? [],
-        ...extra
-      },
+      requestData,
       {
         headers: this.context.getHeaders(certificate)
       });

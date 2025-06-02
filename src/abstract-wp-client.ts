@@ -195,6 +195,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     updateMatterData?: (matter: MatterData) => void,
   }): Promise<WordPressClientResult<WordPressPublishResult>> {
     const { postParams, auth, updateMatterData } = params;
+    
+    console.log('DEBUG: tryToPublish called with postParams:', JSON.stringify(postParams));
+    
     const tagTerms = await this.getTags(postParams.tags, auth);
     postParams.tags = tagTerms.map(term => term.id);
     await this.updatePostImages({
@@ -202,6 +205,16 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       postParams
     });
     const html = AppState.markdownParser.render(postParams.content);
+    
+    console.log('DEBUG: About to call this.publish with:');
+    console.log('DEBUG: - title:', postParams.title);
+    console.log('DEBUG: - content length:', postParams.content?.length || 0);
+    console.log('DEBUG: - content preview:', postParams.content?.substring(0, 200));
+    console.log('DEBUG: - html length:', html?.length || 0);
+    console.log('DEBUG: - html preview:', html?.substring(0, 200));
+    console.log('DEBUG: - postParams.postId:', postParams.postId);
+    console.log('DEBUG: - this.name:', this.name);
+    
     const result = await this.publish(
       postParams.title ?? 'A post from Obsidian!',
       html,
