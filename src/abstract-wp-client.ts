@@ -299,7 +299,35 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         const currentContent = await this.plugin.app.vault.read(file);
         console.log('DEBUG: Full file content before processing:', currentContent.substring(0, 500));
         
-        await this.plugin.app.fileManager.processFrontMatter(file, async fm => {
+        // Pre-convert category data before frontmatter processing
+        let categoryNamesForNewPost: string[] | undefined;
+        let categoryNamesForExisting: string[] | undefined;
+        
+        // Convert new post categories to names if needed
+        if (postParams.categories && postParams.categories.length > 0) {
+          try {
+            const auth = await this.getAuth();
+            categoryNamesForNewPost = await this.convertCategoryIdsToNames(postParams.categories, auth);
+          } catch (error) {
+            console.warn('Could not convert category IDs to names for new post:', error);
+          }
+        }
+        
+        // Check if we need to convert existing categories from IDs to names
+        const currentFileData = await processFile(file, this.plugin.app);
+        if (currentFileData.matter.wp_categories && Array.isArray(currentFileData.matter.wp_categories) && currentFileData.matter.wp_categories.length > 0) {
+          if (typeof currentFileData.matter.wp_categories[0] === 'number') {
+            // Convert existing IDs to names
+            try {
+              const auth = await this.getAuth();
+              categoryNamesForExisting = await this.convertCategoryIdsToNames(currentFileData.matter.wp_categories as number[], auth);
+            } catch (error) {
+              console.warn('Could not convert existing category IDs to names:', error);
+            }
+          }
+        }
+        
+        await this.plugin.app.fileManager.processFrontMatter(file, fm => {
           console.log('DEBUG: Original frontmatter =', JSON.stringify(fm));
           
           // Store ALL original WordPress frontmatter to ensure preservation
@@ -339,34 +367,14 @@ export abstract class AbstractWordPressClient implements WordPressClient {
           
           // Categories: Save as names instead of IDs
           if (preserved.wp_categories !== undefined) {
-            // Check if existing categories are already names
-            const existingCategories = preserved.wp_categories;
-            if (Array.isArray(existingCategories) && existingCategories.length > 0) {
-              if (typeof existingCategories[0] === 'string') {
-                // Already stored as names, keep them
-                fm.wp_categories = preserved.wp_categories;
-              } else {
-                // Legacy format (IDs), convert to names
-                try {
-                  const auth = await this.getAuth();
-                  fm.wp_categories = await this.convertCategoryIdsToNames(existingCategories as number[], auth);
-                } catch (error) {
-                  console.warn('Could not convert existing category IDs to names:', error);
-                  fm.wp_categories = preserved.wp_categories; // Keep as-is if conversion fails
-                }
-              }
-            } else {
-              fm.wp_categories = preserved.wp_categories;
-            }
+            // Use converted names if available, otherwise keep as-is
+            fm.wp_categories = categoryNamesForExisting || preserved.wp_categories;
+          } else if (categoryNamesForNewPost) {
+            // Use pre-computed category names for new posts
+            fm.wp_categories = categoryNamesForNewPost;
           } else if (postParams.categories && postParams.categories.length > 0) {
-            // Convert new category IDs to names for storage
-            try {
-              const auth = await this.getAuth();
-              fm.wp_categories = await this.convertCategoryIdsToNames(postParams.categories, auth);
-            } catch (error) {
-              console.warn('Could not convert category IDs to names for new post:', error);
-              fm.wp_categories = postParams.categories; // Fallback to IDs if conversion fails
-            }
+            // Fallback to IDs if conversion failed
+            fm.wp_categories = postParams.categories;
           }
           
           if (preserved.wp_tags !== undefined) {

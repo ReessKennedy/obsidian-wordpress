@@ -77826,7 +77826,28 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
         console.log("DEBUG: postParams =", JSON.stringify(postParams));
         const currentContent = await this.plugin.app.vault.read(file);
         console.log("DEBUG: Full file content before processing:", currentContent.substring(0, 500));
-        await this.plugin.app.fileManager.processFrontMatter(file, async (fm) => {
+        let categoryNamesForNewPost;
+        let categoryNamesForExisting;
+        if (postParams.categories && postParams.categories.length > 0) {
+          try {
+            const auth2 = await this.getAuth();
+            categoryNamesForNewPost = await this.convertCategoryIdsToNames(postParams.categories, auth2);
+          } catch (error2) {
+            console.warn("Could not convert category IDs to names for new post:", error2);
+          }
+        }
+        const currentFileData = await processFile(file, this.plugin.app);
+        if (currentFileData.matter.wp_categories && Array.isArray(currentFileData.matter.wp_categories) && currentFileData.matter.wp_categories.length > 0) {
+          if (typeof currentFileData.matter.wp_categories[0] === "number") {
+            try {
+              const auth2 = await this.getAuth();
+              categoryNamesForExisting = await this.convertCategoryIdsToNames(currentFileData.matter.wp_categories, auth2);
+            } catch (error2) {
+              console.warn("Could not convert existing category IDs to names:", error2);
+            }
+          }
+        }
+        await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
           console.log("DEBUG: Original frontmatter =", JSON.stringify(fm));
           const preserved = {
             wp_url: fm.wp_url,
@@ -77853,30 +77874,11 @@ var _AbstractWordPressClient = class _AbstractWordPressClient {
             fm.wp_ptype = postParams.postType;
           }
           if (preserved.wp_categories !== void 0) {
-            const existingCategories = preserved.wp_categories;
-            if (Array.isArray(existingCategories) && existingCategories.length > 0) {
-              if (typeof existingCategories[0] === "string") {
-                fm.wp_categories = preserved.wp_categories;
-              } else {
-                try {
-                  const auth2 = await this.getAuth();
-                  fm.wp_categories = await this.convertCategoryIdsToNames(existingCategories, auth2);
-                } catch (error2) {
-                  console.warn("Could not convert existing category IDs to names:", error2);
-                  fm.wp_categories = preserved.wp_categories;
-                }
-              }
-            } else {
-              fm.wp_categories = preserved.wp_categories;
-            }
+            fm.wp_categories = categoryNamesForExisting || preserved.wp_categories;
+          } else if (categoryNamesForNewPost) {
+            fm.wp_categories = categoryNamesForNewPost;
           } else if (postParams.categories && postParams.categories.length > 0) {
-            try {
-              const auth2 = await this.getAuth();
-              fm.wp_categories = await this.convertCategoryIdsToNames(postParams.categories, auth2);
-            } catch (error2) {
-              console.warn("Could not convert category IDs to names for new post:", error2);
-              fm.wp_categories = postParams.categories;
-            }
+            fm.wp_categories = postParams.categories;
           }
           if (preserved.wp_tags !== void 0) {
             fm.wp_tags = preserved.wp_tags;
